@@ -1,9 +1,9 @@
 import streamlit as st
 from openai import OpenAI
 
-st.set_page_config(page_title="裏垢女子ツール（究極版）", layout="wide")
-st.title("🌸 裏垢女子ツイート生成ツール（究極版）")
-st.caption("生成数自由調整 | 重複回避強化 | プロンプト編集可能")
+st.set_page_config(page_title="裏垢女子ツール（生成数強化版）", layout="wide")
+st.title("🌸 裏垢女子ツイート生成ツール（生成数強化版）")
+st.caption("生成数1〜30まで正確に反映 | 重複回避強化")
 
 # =====================
 # API設定
@@ -39,7 +39,7 @@ with st.sidebar:
     hazukashi = st.slider("恥ずかしさ", 0, 100, 70)
 
 # =====================
-# ステップ1: ペルソナ → AI①設計
+# ステップ1
 # =====================
 st.header("ステップ1: ペルソナを入力 → AI①が最適プロンプトを設計")
 
@@ -77,7 +77,7 @@ if st.button("🚀 AI①にプロンプトを設計させる", type="primary"):
 
 if "meta_prompt" in st.session_state:
     st.divider()
-    st.subheader("AI①が設計したプロンプト（ここを自由に編集できます）")
+    st.subheader("AI①が設計したプロンプト（編集可能）")
     edited_prompt = st.text_area("プロンプト編集", value=st.session_state.meta_prompt, height=300)
     st.session_state.edited_meta_prompt = edited_prompt
 
@@ -91,7 +91,7 @@ if "meta_prompt" in st.session_state:
             st.rerun()
 
 # =====================
-# ステップ2: 生成（生成数を動的に変更）
+# ステップ2: 生成（生成数を正確に反映）
 # =====================
 st.divider()
 st.header("ステップ2: ペルソナからAI②が自然にツイートを生成")
@@ -102,7 +102,7 @@ if "meta_prompt" not in st.session_state:
 
 if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
     with st.spinner(f"AI②が{num_tweets}パターン生成中..."):
-        gen = f"""以下のペルソナに完全に沿った、自然な裏垢女子のXツイートを**{num_tweets}パターン**作成してください。
+        gen = f"""以下のペルソナに完全に沿った、自然な裏垢女子のXツイートを**正確に{num_tweets}パターン**作成してください。
 
 ペルソナ:
 {st.session_state.get("persona", persona)}
@@ -115,35 +115,35 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
 - 各ツイートは**明確に異なる内容・表現**にし、重複を絶対に避ける
 - かわいさ{kawaii}・エロさ{ero}・恥ずかしさ{hazukashi}のバランスを調整
 
-出力形式:
+**出力形式を厳密に守ること**：
 ツイート1:
 （本文）
 
 ツイート2:
 （本文）
 
-...（{num_tweets}個まで続ける）"""
+... 合計でちょうど{num_tweets}個まで続ける """
 
         use_prompt = st.session_state.get("edited_meta_prompt", st.session_state.meta_prompt)
 
         res = client.chat.completions.create(
             model=MODEL,
             messages=[{"role": "system", "content": use_prompt}, {"role": "user", "content": gen}],
-            temperature=0.82,
-            max_tokens=4000
+            temperature=0.75,   # 形式を守りやすくするため少し下げた
+            max_tokens=4500
         )
         result = res.choices[0].message.content.strip()
 
-        # 頑丈なパース
+        # より頑丈なパース処理
         tweets = []
         current = ""
         for line in result.split("\n"):
             line = line.strip()
-            if line.startswith("ツイート") and ":" in line:
+            if (line.startswith("ツイート") and ":" in line) or (line.startswith(str(len(tweets)+1)) and "." in line):
                 if current:
                     tweets.append(current.strip())
                 current = ""
-            elif line and not line.startswith("（本文）"):
+            elif line and not any(x in line for x in ["（本文）", "出力形式", "ツイート"]):
                 current += line + "\n"
         if current:
             tweets.append(current.strip())
@@ -157,4 +157,4 @@ if "last_tweets" in st.session_state:
         st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
 st.divider()
-st.caption("生成数1〜30まで自由調整 | 重複回避強化 | プロンプト編集可能")
+st.caption("生成数1〜30まで正確反映 | 重複回避強化 | プロンプト編集可能")
