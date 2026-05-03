@@ -3,7 +3,7 @@ from openai import OpenAI
 
 st.set_page_config(page_title="裏垢女子ツール（究極版）", layout="wide")
 st.title("🌸 裏垢女子ツイート生成ツール（究極版）")
-st.caption("ペルソナ中心 | プロンプト編集可能 | 文字数10〜250文字調整")
+st.caption("生成数自由調整 | 重複回避強化 | プロンプト編集可能")
 
 # =====================
 # API設定
@@ -25,8 +25,12 @@ with st.sidebar:
         MODEL = "gpt-4o-mini"
 
     st.divider()
-    st.markdown("### 📏 ツイート文字数調整")
-    tweet_length = st.slider("1ツイートの目安文字数", 10, 250, 140, step=10)
+    st.markdown("### 📏 生成数調整")
+    num_tweets = st.slider("生成するツイート数", 1, 30, 3, step=1)
+
+    st.divider()
+    st.markdown("### 📏 1ツイートの目安文字数")
+    tweet_length = st.slider("文字数", 10, 250, 140, step=10)
 
     st.divider()
     st.markdown("### 🎚️ トーン調整")
@@ -71,32 +75,23 @@ if st.button("🚀 AI①にプロンプトを設計させる", type="primary"):
             st.session_state.meta_prompt = res.choices[0].message.content.strip()
             st.success("✅ AI①がプロンプトを設計しました！")
 
-# =====================
-# AI①プロンプトの編集機能（ここが新しく追加）
-# =====================
 if "meta_prompt" in st.session_state:
     st.divider()
     st.subheader("AI①が設計したプロンプト（ここを自由に編集できます）")
-    edited_prompt = st.text_area(
-        "プロンプトを編集",
-        value=st.session_state.meta_prompt,
-        height=300,
-        key="edited_prompt_area"
-    )
-    st.session_state.edited_meta_prompt = edited_prompt  # 編集内容を保存
+    edited_prompt = st.text_area("プロンプト編集", value=st.session_state.meta_prompt, height=300)
+    st.session_state.edited_meta_prompt = edited_prompt
 
     col1, col2 = st.columns(2)
     with col1:
         if st.button("📝 編集したプロンプトで保存", type="primary"):
             st.session_state.meta_prompt = edited_prompt
-            st.success("プロンプトを更新しました！")
+            st.success("更新しました！")
     with col2:
         if st.button("🔄 元のプロンプトに戻す"):
-            st.session_state.edited_meta_prompt = st.session_state.meta_prompt
             st.rerun()
 
 # =====================
-# ステップ2: 生成
+# ステップ2: 生成（生成数を動的に変更）
 # =====================
 st.divider()
 st.header("ステップ2: ペルソナからAI②が自然にツイートを生成")
@@ -105,18 +100,19 @@ if "meta_prompt" not in st.session_state:
     st.info("先にステップ1を完了してください")
     st.stop()
 
-if st.button("✨ AI②で3パターン生成", type="primary"):
-    with st.spinner("生成中..."):
-        gen = f"""以下のペルソナに完全に沿った、自然な裏垢女子のXツイートを3パターン作成してください。
+if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
+    with st.spinner(f"AI②が{num_tweets}パターン生成中..."):
+        gen = f"""以下のペルソナに完全に沿った、自然な裏垢女子のXツイートを**{num_tweets}パターン**作成してください。
 
 ペルソナ:
 {st.session_state.get("persona", persona)}
 
 【絶対厳守】
-- 1ツイートあたり約{tweet_length}文字程度
+- 各ツイートは約{tweet_length}文字程度
 - 短い自然な口語体
 - 自然な改行を入れて読みやすく
 - 吐息は1ツイートに最大2回まで
+- 各ツイートは**明確に異なる内容・表現**にし、重複を絶対に避ける
 - かわいさ{kawaii}・エロさ{ero}・恥ずかしさ{hazukashi}のバランスを調整
 
 出力形式:
@@ -126,20 +122,19 @@ if st.button("✨ AI②で3パターン生成", type="primary"):
 ツイート2:
 （本文）
 
-ツイート3:
-（本文）"""
+...（{num_tweets}個まで続ける）"""
 
-        # 編集したプロンプトがあればそれを使う
         use_prompt = st.session_state.get("edited_meta_prompt", st.session_state.meta_prompt)
 
         res = client.chat.completions.create(
             model=MODEL,
             messages=[{"role": "system", "content": use_prompt}, {"role": "user", "content": gen}],
-            temperature=0.78,
-            max_tokens=2500
+            temperature=0.82,
+            max_tokens=4000
         )
         result = res.choices[0].message.content.strip()
 
+        # 頑丈なパース
         tweets = []
         current = ""
         for line in result.split("\n"):
@@ -153,8 +148,8 @@ if st.button("✨ AI②で3パターン生成", type="primary"):
         if current:
             tweets.append(current.strip())
 
-        st.session_state.last_tweets = tweets[:3]
-        st.success("✅ 生成完了！")
+        st.session_state.last_tweets = tweets[:num_tweets]
+        st.success(f"✅ {len(st.session_state.last_tweets)}パターン生成完了！")
 
 if "last_tweets" in st.session_state:
     st.subheader("生成されたツイート")
@@ -162,4 +157,4 @@ if "last_tweets" in st.session_state:
         st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
 st.divider()
-st.caption("プロンプト編集可能 | 文字数10〜250文字調整 | トーン調整搭載")
+st.caption("生成数1〜30まで自由調整 | 重複回避強化 | プロンプト編集可能")
