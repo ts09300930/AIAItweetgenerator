@@ -4,7 +4,7 @@ import json
 
 st.set_page_config(page_title="裏垢女子ツール（生成数完全対応版）", layout="wide")
 st.title("🌸 裏垢女子ツイート生成ツール（生成数完全対応版）")
-st.caption("生成数1〜30まで正確に反映 | JSON形式で安定化")
+st.caption("生成数1〜30まで正確に反映 | JSON強制 + 堅牢パース")
 
 # =====================
 # API設定
@@ -91,7 +91,7 @@ if "meta_prompt" in st.session_state:
             st.rerun()
 
 # =====================
-# ステップ2: 生成（JSON形式で安定化）
+# ステップ2: 生成（JSON強制 + 堅牢パース）
 # =====================
 st.divider()
 st.header("ステップ2: ペルソナからAI②が自然にツイートを生成")
@@ -114,12 +114,13 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
 - 吐息は1ツイートに最大2回まで
 - 各ツイートは明確に異なる内容にする（重複厳禁）
 
-**必ず以下のJSON形式で出力すること**：
+**必ず以下のJSON形式で出力**（他の文字は一切入れない）：
 {{
   "tweets": [
     "ツイート1の完全な本文",
     "ツイート2の完全な本文",
-    ...（合計{num_tweets}個）
+    "ツイート3の完全な本文",
+    ... 合計でちょうど{num_tweets}個
   ]
 }}"""
 
@@ -129,25 +130,36 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
             model=MODEL,
             messages=[{"role": "system", "content": use_prompt}, {"role": "user", "content": gen}],
             temperature=0.7,
-            max_tokens=4500
+            max_tokens=6000
         )
         result = res.choices[0].message.content.strip()
 
-        # JSONパースで確実に複数取得
+        # JSONパースを最優先
         try:
-            # JSON部分を抽出
+            # JSONブロックを抽出
             if "```json" in result:
                 json_str = result.split("```json")[1].split("```")[0].strip()
-            elif "{" in result:
-                json_str = result[result.find("{"):result.rfind("}")+1]
             else:
-                json_str = result
+                json_str = result[result.find("{"):result.rfind("}") + 1]
 
             data = json.loads(json_str)
-            st.session_state.last_tweets = data.get("tweets", [])[:num_tweets]
+            tweets = data.get("tweets", [])
+            st.session_state.last_tweets = tweets[:num_tweets]
         except:
-            # JSONパース失敗時はフォールバック
-            st.session_state.last_tweets = [line.strip() for line in result.split("\n") if line.strip()][:num_tweets]
+            # JSON失敗時のフォールバック（より頑丈に）
+            tweets = []
+            current = ""
+            for line in result.split("\n"):
+                line = line.strip()
+                if line.startswith("ツイート") and ":" in line:
+                    if current:
+                        tweets.append(current.strip())
+                    current = ""
+                elif line and not line.startswith("（本文）"):
+                    current += line + "\n"
+            if current:
+                tweets.append(current.strip())
+            st.session_state.last_tweets = tweets[:num_tweets]
 
         st.success(f"✅ {len(st.session_state.last_tweets)}パターン生成完了！")
 
@@ -157,4 +169,4 @@ if "last_tweets" in st.session_state:
         st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
 st.divider()
-st.caption("生成数1〜30まで正確反映 | JSON形式で安定化")
+st.caption("生成数1〜30まで正確反映 | JSON強制 + 堅牢パース")
