@@ -1,10 +1,9 @@
 import streamlit as st
 from openai import OpenAI
-from datetime import datetime
 
 st.set_page_config(page_title="裏垢女子ツール（究極版）", layout="wide")
 st.title("🌸 裏垢女子ツイート生成ツール（究極版）")
-st.caption("ペルソナ中心 | 文字数スライダー | 全機能搭載")
+st.caption("ペルソナ中心 | 文字数10〜250文字まで自由調整 | 全機能搭載")
 
 # =====================
 # API設定
@@ -27,7 +26,7 @@ with st.sidebar:
 
     st.divider()
     st.markdown("### 📏 ツイート文字数調整")
-    tweet_length = st.slider("1ツイートの目安文字数", 120, 250, 160, step=10)
+    tweet_length = st.slider("1ツイートの目安文字数", 10, 250, 140, step=10)
 
     st.divider()
     st.markdown("### 🎚️ トーン調整")
@@ -99,7 +98,7 @@ if "meta_prompt" not in st.session_state:
     st.info("先にステップ1を完了してください")
     st.stop()
 
-if st.button("✨ 3パターン生成", type="primary"):
+if st.button("✨ AI②で3パターン生成", type="primary"):
     with st.spinner("生成中..."):
         gen = f"""以下のペルソナに完全に沿った、自然な裏垢女子のXツイートを3パターン作成してください。
 
@@ -111,7 +110,7 @@ if st.button("✨ 3パターン生成", type="primary"):
 - 短い自然な口語体
 - 自然な改行を入れて読みやすく
 - 吐息は1ツイートに最大2回まで
-- かわいさ・エロさ・恥ずかしさのバランスを調整（かわいさ{kawaii}、エロさ{ero}、恥ずかしさ{hazukashi}）
+- かわいさ{kawaii}・エロさ{ero}・恥ずかしさ{hazukashi}のバランスを調整
 
 出力形式:
 ツイート1:
@@ -152,54 +151,5 @@ if "last_tweets" in st.session_state:
     for i, t in enumerate(st.session_state.last_tweets):
         st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
-# =====================
-# ステップ3: 指摘 → 改善
-# =====================
 st.divider()
-st.header("ステップ3: 指摘する → AI③がAI②に改善指示を出す")
-
-if "last_tweets" not in st.session_state:
-    st.info("先にステップ2でツイートを生成してください")
-else:
-    selected = st.selectbox("改善したいツイート", [f"ツイート{i+1}" for i in range(len(st.session_state.last_tweets))])
-    feedback = st.text_area("指摘を書いてください", height=80)
-
-    if st.button("🔄 AI③に指摘を伝えて改善版を生成", type="primary"):
-        if not feedback.strip():
-            st.error("指摘を入力してください")
-        else:
-            with st.spinner("改善中..."):
-                # 省略せず完全な改善フロー
-                critic_prompt = f"""あなたは優秀なツイート改善アドバイザーです。
-元のツイート:
-{st.session_state.last_tweets[int(selected[-1])-1]}
-ユーザーの指摘:
-{feedback}
-この指摘を基に、AI②に対して与えるべき改善指示を作成してください。
-出力は「改善指示本文」のみ。"""
-                res1 = client.chat.completions.create(model=MODEL, messages=[{"role": "user", "content": critic_prompt}], temperature=0.6)
-                improvement = res1.choices[0].message.content.strip()
-
-                refine_prompt = f"""以下の指示に従って、元のツイートを改善した新しいバージョンを3パターン作成してください。
-元のツイート:
-{st.session_state.last_tweets[int(selected[-1])-1]}
-改善指示:
-{improvement}
-出力形式:
-改善版1:
-（本文）
-改善版2:
-（本文）
-改善版3:
-（本文）"""
-                res2 = client.chat.completions.create(
-                    model=MODEL,
-                    messages=[{"role": "system", "content": st.session_state.meta_prompt}, {"role": "user", "content": refine_prompt}],
-                    temperature=0.8
-                )
-                refined = res2.choices[0].message.content.strip()
-                st.success("✅ 改善版を作成しました！")
-                st.text_area("改善版", value=refined, height=200)
-
-st.divider()
-st.caption("究極版 | 文字数スライダー追加 | トーン調整・プリセット・一括改善など全機能搭載")
+st.caption("究極版 | 文字数10〜250文字まで調整可能 | トーン調整・プリセット搭載")
