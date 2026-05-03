@@ -1,9 +1,9 @@
 import streamlit as st
 from openai import OpenAI
 
-st.set_page_config(page_title="裏垢女子ツール（シンプル版）", layout="wide")
-st.title("🌸 裏垢女子ツイート生成ツール（シンプル版）")
-st.caption("ペルソナ入力 → AI①設計 → AI②生成 → あなた指摘 → AI③指示 → AI②改善")
+st.set_page_config(page_title="裏垢女子ツール（最終修正版）", layout="wide")
+st.title("🌸 裏垢女子ツイート生成ツール（最終修正版）")
+st.caption("ペルソナ中心 | 自然生成 | 形式厳守強化済み")
 
 # =====================
 # API設定
@@ -36,21 +36,23 @@ if st.button("🚀 AI①にプロンプトを設計させる", type="primary"):
         st.error("ペルソナを入力してください")
     else:
         with st.spinner("AI①が設計中..."):
-            meta = f"""あなたはXで成功している裏垢女子のツイートを徹底分析したプロンプトエンジニアです。
+            meta = f"""あなたはXでフォロワー数万人の裏垢女子アカウントを長年運営しているプロンプトエンジニアです。
 
-【最重要指示】
-生成するツイートは「普通の裏垢女子がサラッと書いた自然な感じ」にしてください。
-- 口語体で短め（140〜220文字程度）
-- 難しい言葉は避ける
-- 絵文字は一切使わない
-- マークダウン（**や*）は一切使わない
-- 自然な改行を入れて読みやすく
-- 女性らしい柔らかい表現、かわいい感じ、ちょっと恥ずかしがる感じ、甘えた感じを強く意識
+生成するツイートは以下の条件を**絶対厳守**してください。
+- 140〜220文字程度の短め口語体
+- 一切絵文字を使わない
+- マークダウン（**や*）など一切の装飾を使わない
+- 難しい言葉は完全禁止、超日常的な女の子の言葉遣いのみ
+- 自然な改行を入れて、読んだ時に「ふとした瞬間に投稿した感」を出す
+- 女性らしい柔らかさ、ちょっと恥ずかしがるニュアンス、甘えた感じ、拗ねた感じを強く出す
+- 低身長・童顔・貧乳などのコンプレックスをネタにしつつも、直接的すぎず「かわいいのに…」みたいな遠回しで可愛い自虐を入れる
+- 「はぁ...」「ん...」「だめだよぉ...」などの甘い溜息や語尾を自然に使う
+- 裏垢女子特有の「誰にも言えないような欲求や照れ」をサラッと零す雰囲気
 
 ペルソナ:
 {persona}
 
-このペルソナに最適な「自然なXツイート生成用システムプロンプト」を作成してください。
+このペルソナに完全に最適化した「自然なXツイート生成用システムプロンプト」を作成してください。
 出力はプロンプト本文のみ。"""
 
             try:
@@ -65,7 +67,7 @@ if "meta_prompt" in st.session_state:
         st.code(st.session_state.meta_prompt)
 
 # =====================
-# ステップ2: ペルソナから直接生成（トピック削除）
+# ステップ2: ペルソナから直接生成（形式を極限まで強化）
 # =====================
 st.divider()
 st.header("ステップ2: ペルソナからAI②が自然にツイートを生成")
@@ -76,42 +78,55 @@ if "meta_prompt" not in st.session_state:
 
 if st.button("✨ AI②で自然なツイート3パターン生成", type="primary"):
     with st.spinner("AI②が生成中..."):
-        gen = f"""以下のペルソナに完全に沿った、自然な裏垢女子のXツイートを3パターン作成してください。
+        gen = f"""以下のペルソナに完全に沿った、自然で魅力的な裏垢女子のXツイートを**3パターン**作成してください。
 
 ペルソナ:
 {st.session_state.get("persona", persona)}
 
-【重要】
-- 小説っぽくせず、普通の裏垢女子が日常で書くような自然な口語で
-- 短めで読みやすい
+【絶対厳守ルール】
+- 各ツイートは140〜220文字程度の**完全な一つのツイート**として出力
+- 短い断片や不完全な文章は絶対に作らない
 - 絵文字は一切使わない
 - マークダウン（**や*）は一切使わない
 - 自然な改行を入れて読みやすく
-- 女性らしい柔らかい表現、かわいい感じ、ちょっと恥ずかしがる感じを強く
+- 女性らしい柔らかさ、恥ずかしさ、甘えた感じを強く出す
 
-出力形式:
+**以下の形式でしか出力しない**：
 ツイート1:
-（本文）
+（ここに完全なツイート本文）
 
 ツイート2:
-（本文）
+（ここに完全なツイート本文）
 
 ツイート3:
-（本文）"""
+（ここに完全なツイート本文）"""
 
         try:
             res = client.chat.completions.create(
                 model=MODEL,
-                messages=[{"role": "system", "content": st.session_state.meta_prompt}, {"role": "user", "content": gen}],
-                temperature=0.85
+                messages=[
+                    {"role": "system", "content": st.session_state.meta_prompt},
+                    {"role": "user", "content": gen}
+                ],
+                temperature=0.75,   # 少し下げて形式を守りやすく
+                max_tokens=2000
             )
             result = res.choices[0].message.content.strip()
-            # クリーンアップ（**ツイート1:** などの残骸を除去）
+
+            # より頑丈なパース処理
             tweets = []
+            current = ""
             for line in result.split("\n"):
                 line = line.strip()
-                if line and not line.startswith("ツイート") and not line.startswith("**"):
-                    tweets.append(line)
+                if line.startswith("ツイート") and ":" in line:
+                    if current:
+                        tweets.append(current.strip())
+                    current = ""
+                elif line and not line.startswith("（本文）"):
+                    current += line + "\n"
+            if current:
+                tweets.append(current.strip())
+
             st.session_state.last_tweets = tweets[:3]
             st.success("✅ AI②がツイートを生成しました！")
         except Exception as e:
@@ -120,7 +135,7 @@ if st.button("✨ AI②で自然なツイート3パターン生成", type="prima
 if "last_tweets" in st.session_state:
     st.subheader("生成されたツイート")
     for i, t in enumerate(st.session_state.last_tweets):
-        st.text_area(f"ツイート{i+1}", value=t, height=90, key=f"t_{i}")
+        st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
 # =====================
 # ステップ3: 指摘 → 改善
@@ -132,13 +147,13 @@ if "last_tweets" not in st.session_state:
     st.info("先にステップ2でツイートを生成してください")
 else:
     selected = st.selectbox("改善したいツイートを選んでください", [f"ツイート{i+1}" for i in range(len(st.session_state.last_tweets))])
-    feedback = st.text_area("ここに指摘を書いてください（例: もっと短く / もっとかわいく / 日常感を強く / 恥ずかしさを増して）", height=80)
+    feedback = st.text_area("指摘を書いてください", height=80)
 
     if st.button("🔄 AI③に指摘を伝えて改善版を生成", type="primary"):
         if not feedback.strip():
             st.error("指摘を入力してください")
         else:
-            with st.spinner("AI③が指摘を分析し、AI②に改善指示を出しています..."):
+            with st.spinner("改善中..."):
                 critic_prompt = f"""あなたは優秀なツイート改善アドバイザーです。
 元のツイート:
 {st.session_state.last_tweets[int(selected[-1])-1]}
@@ -174,4 +189,4 @@ else:
                     st.error(f"エラー: {e}")
 
 st.divider()
-st.caption("シンプル版 | トピック削除 | ペルソナ中心の自然生成")
+st.caption("最終修正版 | 生成形式を極限まで強化")
