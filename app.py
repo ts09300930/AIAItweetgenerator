@@ -3,7 +3,7 @@ from openai import OpenAI
 
 st.set_page_config(page_title="裏垢女子ツール（究極版）", layout="wide")
 st.title("🌸 裏垢女子ツイート生成ツール（究極版）")
-st.caption("ペルソナ中心 | 文字数10〜250文字まで自由調整 | 全機能搭載")
+st.caption("ペルソナ中心 | プロンプト編集可能 | 文字数10〜250文字調整")
 
 # =====================
 # API設定
@@ -34,21 +34,8 @@ with st.sidebar:
     ero = st.slider("エロさ", 0, 100, 35)
     hazukashi = st.slider("恥ずかしさ", 0, 100, 70)
 
-    st.divider()
-    st.markdown("### 📚 ペルソナプリセット")
-    presets = {
-        "清楚系欲求不満大学生": "22歳の私立女子大生。黒髪ロングで清楚系だけど実は超欲求不満。日常のちょっとした誘惑を、恥ずかしがりながら可愛く匂わせる感じ。",
-        "ギャル系エロかわいい": "21歳のギャル系女子。明るくてエロかわいい感じ。積極的だけど可愛く甘えた話し方。",
-        "内気系むらむら女子": "23歳の内気な女子。普段は大人しいけど夜になるとむらむらして一人で妄想しがち。",
-        "低身長童顔貧乳": "20歳の低身長140cm童顔Aカップ貧乳女子。自分の体型にコンプレックスを抱きつつも、誰かに甘えたい欲求が強い。",
-    }
-    selected_preset = st.selectbox("プリセットを選択", ["-- 選択 --"] + list(presets.keys()))
-    if selected_preset != "-- 選択 --" and st.button("📥 プリセットを読み込む"):
-        st.session_state.persona = presets[selected_preset]
-        st.rerun()
-
 # =====================
-# ステップ1
+# ステップ1: ペルソナ → AI①設計
 # =====================
 st.header("ステップ1: ペルソナを入力 → AI①が最適プロンプトを設計")
 
@@ -66,8 +53,8 @@ if st.button("🚀 AI①にプロンプトを設計させる", type="primary"):
 - 短い自然な口語体
 - 自然な改行を入れて読みやすく
 - 絵文字・マークダウン一切禁止
-- 吐息（はぁ...、ん...、だめだよぉ...など）は1ツイートに最大2回まで
-- 女性らしい柔らかさ、かわいい感じ、ちょっと恥ずかしがる感じを自然に出す
+- 吐息は1ツイートに最大2回まで
+- 女性らしい柔らかさ、かわいい感じ、恥ずかしがる感じを自然に出す
 
 【トーン調整】
 - かわいさ: {kawaii}/100
@@ -84,12 +71,32 @@ if st.button("🚀 AI①にプロンプトを設計させる", type="primary"):
             st.session_state.meta_prompt = res.choices[0].message.content.strip()
             st.success("✅ AI①がプロンプトを設計しました！")
 
+# =====================
+# AI①プロンプトの編集機能（ここが新しく追加）
+# =====================
 if "meta_prompt" in st.session_state:
-    with st.expander("AI①が設計したプロンプト"):
-        st.code(st.session_state.meta_prompt)
+    st.divider()
+    st.subheader("AI①が設計したプロンプト（ここを自由に編集できます）")
+    edited_prompt = st.text_area(
+        "プロンプトを編集",
+        value=st.session_state.meta_prompt,
+        height=300,
+        key="edited_prompt_area"
+    )
+    st.session_state.edited_meta_prompt = edited_prompt  # 編集内容を保存
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📝 編集したプロンプトで保存", type="primary"):
+            st.session_state.meta_prompt = edited_prompt
+            st.success("プロンプトを更新しました！")
+    with col2:
+        if st.button("🔄 元のプロンプトに戻す"):
+            st.session_state.edited_meta_prompt = st.session_state.meta_prompt
+            st.rerun()
 
 # =====================
-# ステップ2
+# ステップ2: 生成
 # =====================
 st.divider()
 st.header("ステップ2: ペルソナからAI②が自然にツイートを生成")
@@ -122,9 +129,12 @@ if st.button("✨ AI②で3パターン生成", type="primary"):
 ツイート3:
 （本文）"""
 
+        # 編集したプロンプトがあればそれを使う
+        use_prompt = st.session_state.get("edited_meta_prompt", st.session_state.meta_prompt)
+
         res = client.chat.completions.create(
             model=MODEL,
-            messages=[{"role": "system", "content": st.session_state.meta_prompt}, {"role": "user", "content": gen}],
+            messages=[{"role": "system", "content": use_prompt}, {"role": "user", "content": gen}],
             temperature=0.78,
             max_tokens=2500
         )
@@ -152,4 +162,4 @@ if "last_tweets" in st.session_state:
         st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
 st.divider()
-st.caption("究極版 | 文字数10〜250文字まで調整可能 | トーン調整・プリセット搭載")
+st.caption("プロンプト編集可能 | 文字数10〜250文字調整 | トーン調整搭載")
