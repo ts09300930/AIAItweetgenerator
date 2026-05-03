@@ -1,9 +1,10 @@
 import streamlit as st
 from openai import OpenAI
+import json
 
-st.set_page_config(page_title="裏垢女子ツール（生成数強化版）", layout="wide")
-st.title("🌸 裏垢女子ツイート生成ツール（生成数強化版）")
-st.caption("生成数1〜30まで正確に反映 | 重複回避強化")
+st.set_page_config(page_title="裏垢女子ツール（生成数完全対応版）", layout="wide")
+st.title("🌸 裏垢女子ツイート生成ツール（生成数完全対応版）")
+st.caption("生成数1〜30まで正確に反映 | JSON形式で安定化")
 
 # =====================
 # API設定
@@ -26,7 +27,7 @@ with st.sidebar:
 
     st.divider()
     st.markdown("### 📏 生成数調整")
-    num_tweets = st.slider("生成するツイート数", 1, 30, 3, step=1)
+    num_tweets = st.slider("生成するツイート数", 1, 30, 5, step=1)
 
     st.divider()
     st.markdown("### 📏 1ツイートの目安文字数")
@@ -58,7 +59,6 @@ if st.button("🚀 AI①にプロンプトを設計させる", type="primary"):
 - 自然な改行を入れて読みやすく
 - 絵文字・マークダウン一切禁止
 - 吐息は1ツイートに最大2回まで
-- 女性らしい柔らかさ、かわいい感じ、恥ずかしがる感じを自然に出す
 
 【トーン調整】
 - かわいさ: {kawaii}/100
@@ -91,7 +91,7 @@ if "meta_prompt" in st.session_state:
             st.rerun()
 
 # =====================
-# ステップ2: 生成（生成数を正確に反映）
+# ステップ2: 生成（JSON形式で安定化）
 # =====================
 st.divider()
 st.header("ステップ2: ペルソナからAI②が自然にツイートを生成")
@@ -102,7 +102,7 @@ if "meta_prompt" not in st.session_state:
 
 if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
     with st.spinner(f"AI②が{num_tweets}パターン生成中..."):
-        gen = f"""以下のペルソナに完全に沿った、自然な裏垢女子のXツイートを**正確に{num_tweets}パターン**作成してください。
+        gen = f"""以下のペルソナに完全に沿った自然な裏垢女子のXツイートを**正確に{num_tweets}個**作成してください。
 
 ペルソナ:
 {st.session_state.get("persona", persona)}
@@ -112,49 +112,49 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
 - 短い自然な口語体
 - 自然な改行を入れて読みやすく
 - 吐息は1ツイートに最大2回まで
-- 各ツイートは**明確に異なる内容・表現**にし、重複を絶対に避ける
-- かわいさ{kawaii}・エロさ{ero}・恥ずかしさ{hazukashi}のバランスを調整
+- 各ツイートは明確に異なる内容にする（重複厳禁）
 
-**出力形式を厳密に守ること**：
-ツイート1:
-（本文）
-
-ツイート2:
-（本文）
-
-... 合計でちょうど{num_tweets}個まで続ける """
+**必ず以下のJSON形式で出力すること**：
+{{
+  "tweets": [
+    "ツイート1の完全な本文",
+    "ツイート2の完全な本文",
+    ...（合計{num_tweets}個）
+  ]
+}}"""
 
         use_prompt = st.session_state.get("edited_meta_prompt", st.session_state.meta_prompt)
 
         res = client.chat.completions.create(
             model=MODEL,
             messages=[{"role": "system", "content": use_prompt}, {"role": "user", "content": gen}],
-            temperature=0.75,   # 形式を守りやすくするため少し下げた
+            temperature=0.7,
             max_tokens=4500
         )
         result = res.choices[0].message.content.strip()
 
-        # より頑丈なパース処理
-        tweets = []
-        current = ""
-        for line in result.split("\n"):
-            line = line.strip()
-            if (line.startswith("ツイート") and ":" in line) or (line.startswith(str(len(tweets)+1)) and "." in line):
-                if current:
-                    tweets.append(current.strip())
-                current = ""
-            elif line and not any(x in line for x in ["（本文）", "出力形式", "ツイート"]):
-                current += line + "\n"
-        if current:
-            tweets.append(current.strip())
+        # JSONパースで確実に複数取得
+        try:
+            # JSON部分を抽出
+            if "```json" in result:
+                json_str = result.split("```json")[1].split("```")[0].strip()
+            elif "{" in result:
+                json_str = result[result.find("{"):result.rfind("}")+1]
+            else:
+                json_str = result
 
-        st.session_state.last_tweets = tweets[:num_tweets]
+            data = json.loads(json_str)
+            st.session_state.last_tweets = data.get("tweets", [])[:num_tweets]
+        except:
+            # JSONパース失敗時はフォールバック
+            st.session_state.last_tweets = [line.strip() for line in result.split("\n") if line.strip()][:num_tweets]
+
         st.success(f"✅ {len(st.session_state.last_tweets)}パターン生成完了！")
 
 if "last_tweets" in st.session_state:
-    st.subheader("生成されたツイート")
+    st.subheader(f"生成されたツイート（{len(st.session_state.last_tweets)}個）")
     for i, t in enumerate(st.session_state.last_tweets):
         st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
 st.divider()
-st.caption("生成数1〜30まで正確反映 | 重複回避強化 | プロンプト編集可能")
+st.caption("生成数1〜30まで正確反映 | JSON形式で安定化")
