@@ -2,9 +2,9 @@ import streamlit as st
 from openai import OpenAI
 import json
 
-st.set_page_config(page_title="裏垢女子ツール（画像プロンプト対応）", layout="wide")
+st.set_page_config(page_title="裏垢女子ツール（画像プロンプト強化版）", layout="wide")
 st.title("🌸 裏垢女子ツイート生成ツール")
-st.caption("現在の良いプロンプトを維持 | 画像プロンプト生成機能追加")
+st.caption("ペルソナ中心 | 現在の良いプロンプト維持 | ペルソナからランダム画像プロンプト生成")
 
 # =====================
 # API設定
@@ -91,7 +91,7 @@ if "meta_prompt" in st.session_state:
             st.rerun()
 
 # =====================
-# ステップ2: 生成
+# ステップ2: ツイート生成
 # =====================
 st.divider()
 st.header("ステップ2: ペルソナからAI②が自然にツイートを生成")
@@ -133,7 +133,6 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
         )
         result = res.choices[0].message.content.strip()
 
-        # JSONパース
         try:
             if "```json" in result:
                 json_str = result.split("```json")[1].split("```")[0].strip()
@@ -165,38 +164,34 @@ if "last_tweets" in st.session_state:
         st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
 # =====================
-# 画像プロンプト生成（新機能）
+# 新機能：ペルソナからランダム画像プロンプト生成
 # =====================
 st.divider()
-st.header("🖼️ 画像プロンプト生成")
+st.header("🖼️ ペルソナからランダム画像プロンプト生成")
 
-if "last_tweets" in st.session_state and st.session_state.last_tweets:
-    selected = st.selectbox("画像プロンプトを作りたいツイートを選んでください", 
-                           [f"ツイート{i+1}" for i in range(len(st.session_state.last_tweets))])
-    
-    if st.button("🖼️ このツイートに合う画像プロンプトを生成"):
-        with st.spinner("画像プロンプト生成中..."):
-            img_gen = f"""以下の裏垢女子ツイートにぴったり合う、Stable Diffusion / NovelAI / Midjourneyなどで使える高品質な英語画像プロンプトを作成してください。
+if st.button("🖼️ ペルソナに基づいて5つの異なる画像プロンプトをランダム生成", type="primary"):
+    with st.spinner("ペルソナから画像プロンプトを生成中..."):
+        img_prompt = f"""以下のペルソナの女の子を題材に、**5つ異なるシチュエーション**の画像プロンプトを作成してください。
 
-ツイート内容:
-{st.session_state.last_tweets[int(selected[-1])-1]}
+ペルソナ:
+{st.session_state.get("persona", persona)}
 
 【要件】
-- 20歳前後の日本人女性、低身長・童顔・Aカップ貧乳を意識
+- 各プロンプトはStable Diffusion / NovelAIなどで使える高品質な英語プロンプト
+- 低身長・童顔・貧乳などの特徴を自然に反映
 - 清楚だけどエロかわいい雰囲気
-- 自然な室内照明、iPhone撮影風のリアルさ
-- 柔らかい表情、恥ずかしがるような仕草
-- 詳細で高品質なプロンプトにしてください
+- 5つは明確に異なるシチュエーションにする
+- 自然な照明、リアルな質感を重視
 
-出力は英語のプロンプトのみ。余計な説明は一切不要。"""
+出力は番号付きで5つだけ。余計な説明は一切不要。"""
 
-            res_img = client.chat.completions.create(
-                model=MODEL,
-                messages=[{"role": "user", "content": img_gen}],
-                temperature=0.7
-            )
-            st.success("✅ 画像プロンプト生成完了！")
-            st.code(res_img.choices[0].message.content.strip())
+        res = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": img_prompt}],
+            temperature=0.85
+        )
+        st.success("✅ ペルソナから5つの画像プロンプトを生成しました！")
+        st.code(res.choices[0].message.content.strip())
 
 st.divider()
-st.caption("現在の良いプロンプトを維持 | 画像プロンプト生成機能追加")
+st.caption("現在の良いプロンプトを維持 | ペルソナからランダム画像プロンプト生成機能追加")
