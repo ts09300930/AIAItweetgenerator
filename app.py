@@ -2,9 +2,9 @@ import streamlit as st
 from openai import OpenAI
 import json
 
-st.set_page_config(page_title="裏垢女子ツール（生成数完全対応版）", layout="wide")
-st.title("🌸 裏垢女子ツイート生成ツール（生成数完全対応版）")
-st.caption("生成数1〜30まで正確に反映 | JSON強制 + 堅牢パース")
+st.set_page_config(page_title="裏垢女子ツール（画像プロンプト対応）", layout="wide")
+st.title("🌸 裏垢女子ツイート生成ツール")
+st.caption("現在の良いプロンプトを維持 | 画像プロンプト生成機能追加")
 
 # =====================
 # API設定
@@ -91,7 +91,7 @@ if "meta_prompt" in st.session_state:
             st.rerun()
 
 # =====================
-# ステップ2: 生成（JSON強制 + 堅牢パース）
+# ステップ2: 生成
 # =====================
 st.divider()
 st.header("ステップ2: ペルソナからAI②が自然にツイートを生成")
@@ -114,13 +114,12 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
 - 吐息は1ツイートに最大2回まで
 - 各ツイートは明確に異なる内容にする（重複厳禁）
 
-**必ず以下のJSON形式で出力**（他の文字は一切入れない）：
+**必ず以下のJSON形式で出力**：
 {{
   "tweets": [
     "ツイート1の完全な本文",
     "ツイート2の完全な本文",
-    "ツイート3の完全な本文",
-    ... 合計でちょうど{num_tweets}個
+    ...
   ]
 }}"""
 
@@ -129,24 +128,21 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
         res = client.chat.completions.create(
             model=MODEL,
             messages=[{"role": "system", "content": use_prompt}, {"role": "user", "content": gen}],
-            temperature=0.7,
+            temperature=0.75,
             max_tokens=6000
         )
         result = res.choices[0].message.content.strip()
 
-        # JSONパースを最優先
+        # JSONパース
         try:
-            # JSONブロックを抽出
             if "```json" in result:
                 json_str = result.split("```json")[1].split("```")[0].strip()
             else:
                 json_str = result[result.find("{"):result.rfind("}") + 1]
-
             data = json.loads(json_str)
-            tweets = data.get("tweets", [])
-            st.session_state.last_tweets = tweets[:num_tweets]
+            st.session_state.last_tweets = data.get("tweets", [])[:num_tweets]
         except:
-            # JSON失敗時のフォールバック（より頑丈に）
+            # フォールバック
             tweets = []
             current = ""
             for line in result.split("\n"):
@@ -168,5 +164,39 @@ if "last_tweets" in st.session_state:
     for i, t in enumerate(st.session_state.last_tweets):
         st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
+# =====================
+# 画像プロンプト生成（新機能）
+# =====================
 st.divider()
-st.caption("生成数1〜30まで正確反映 | JSON強制 + 堅牢パース")
+st.header("🖼️ 画像プロンプト生成")
+
+if "last_tweets" in st.session_state and st.session_state.last_tweets:
+    selected = st.selectbox("画像プロンプトを作りたいツイートを選んでください", 
+                           [f"ツイート{i+1}" for i in range(len(st.session_state.last_tweets))])
+    
+    if st.button("🖼️ このツイートに合う画像プロンプトを生成"):
+        with st.spinner("画像プロンプト生成中..."):
+            img_gen = f"""以下の裏垢女子ツイートにぴったり合う、Stable Diffusion / NovelAI / Midjourneyなどで使える高品質な英語画像プロンプトを作成してください。
+
+ツイート内容:
+{st.session_state.last_tweets[int(selected[-1])-1]}
+
+【要件】
+- 20歳前後の日本人女性、低身長・童顔・Aカップ貧乳を意識
+- 清楚だけどエロかわいい雰囲気
+- 自然な室内照明、iPhone撮影風のリアルさ
+- 柔らかい表情、恥ずかしがるような仕草
+- 詳細で高品質なプロンプトにしてください
+
+出力は英語のプロンプトのみ。余計な説明は一切不要。"""
+
+            res_img = client.chat.completions.create(
+                model=MODEL,
+                messages=[{"role": "user", "content": img_gen}],
+                temperature=0.7
+            )
+            st.success("✅ 画像プロンプト生成完了！")
+            st.code(res_img.choices[0].message.content.strip())
+
+st.divider()
+st.caption("現在の良いプロンプトを維持 | 画像プロンプト生成機能追加")
