@@ -1,9 +1,9 @@
 import streamlit as st
 from openai import OpenAI
 
-st.set_page_config(page_title="裏垢女子ツール", layout="wide")
+st.set_page_config(page_title="裏垢女子ツール（トーン調整最終強化版）", layout="wide")
 st.title("🌸 裏垢女子ツイート生成ツール")
-st.caption("シンプル版 | 生成数とトーン調整を最優先")
+st.caption("生成数・トーン調整が毎回確実に反映")
 
 # =====================
 # API設定
@@ -59,11 +59,6 @@ if st.button("🚀 AI①にプロンプトを設計させる", type="primary"):
 - 絵文字・マークダウン一切禁止
 - 吐息は1ツイートに最大2回まで
 
-【トーン調整を厳密に反映】
-- かわいさ: {kawaii}%強く出す
-- エロさ: {ero}%強く出す（エロさが0%の場合は一切の性的表現を完全排除）
-- 恥ずかしさ: {hazukashi}%強く出す
-
 ペルソナ:
 {persona}
 
@@ -100,7 +95,6 @@ if "meta_prompt" not in st.session_state:
     st.stop()
 
 if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
-    # 毎回完全にクリア
     if "last_tweets" in st.session_state:
         del st.session_state.last_tweets
 
@@ -115,8 +109,12 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
 - 短い自然な口語体
 - 自然な改行を入れて読みやすく
 - 吐息は1ツイートに最大2回まで
-- 各ツイートは明確に異なる内容にする
-- かわいさ{kawaii}%・エロさ{ero}%・恥ずかしさ{hazukashi}%を厳密に反映（エロさ0%の場合は一切の性的表現を完全排除）
+- 各ツイートは明確に異なる内容にする（重複厳禁）
+
+【現在のトーン調整を最優先で厳密に反映】
+- かわいさ: {kawaii}%強く出す
+- エロさ: {ero}%強く出す（エロさが0%の場合は一切の性的表現・欲情描写を完全排除）
+- 恥ずかしさ: {hazukashi}%強く出す
 
 出力形式:
 ツイート1:
@@ -159,4 +157,4 @@ if "last_tweets" in st.session_state:
         st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
 st.divider()
-st.caption("生成ボタン押すたびに新しい内容が出る | トーン調整厳密反映")
+st.caption("生成数・トーン調整が毎回確実に反映 | 生成ボタン押すたびに新しい内容が出る")
