@@ -3,8 +3,8 @@ from openai import OpenAI
 import random
 
 st.set_page_config(page_title="裏垢女子ツール", layout="wide")
-st.title("🌸 裏垢女子ツイート生成ツール（完全制御版）")
-st.caption("トーン段階制御 + 高速 + 安定")
+st.title("🌸 裏垢女子ツイート生成ツール（完全版）")
+st.caption("段階トーン制御 / 毎回変化 / 安定動作")
 
 # =====================
 # セッション安全化
@@ -17,7 +17,7 @@ if "results" in st.session_state:
         del st.session_state.results
 
 # =====================
-# API設定
+# API設定（xAI対応復活）
 # =====================
 with st.sidebar:
     st.header("⚙️ 設定")
@@ -26,16 +26,25 @@ with st.sidebar:
         api_key = st.secrets["OPENAI_API_KEY"]
     else:
         api_key = st.text_input("APIキー", type="password")
-        if not api_key:
-            st.stop()
 
-    client = OpenAI(api_key=api_key)
-    MODEL = "gpt-4o-mini"
+    if not api_key:
+        st.warning("APIキーを入力してください")
+        st.stop()
+
+    # 🔥 ここが重要（xAI対応）
+    if api_key.startswith("xai-"):
+        client = OpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
+        MODEL = "grok-4.20"
+    else:
+        client = OpenAI(api_key=api_key)
+        MODEL = "gpt-4o-mini"
+
+    st.divider()
 
     num_tweets = st.slider("生成数", 1, 20, 5)
     tweet_length = st.slider("文字数", 20, 120, 40)
 
-    # 🔥 段階制スライダー
+    # 🔥 段階制（意味あるスライダー）
     level_labels = ["0%", "25%", "50%", "75%", "100%"]
 
     kawaii_level = st.select_slider("かわいさ", options=level_labels, value="50%")
@@ -43,7 +52,7 @@ with st.sidebar:
     hazukashi_level = st.select_slider("恥ずかしさ", options=level_labels, value="50%")
 
 # =====================
-# レベル → 意味変換
+# トーン変換
 # =====================
 def tone_map(level, kind):
     mapping = {
@@ -80,21 +89,30 @@ def contains_ng(text):
     return any(w in text for w in NG_WORDS)
 
 # =====================
-# ステップ1
+# UI
 # =====================
-st.header("ステップ1：ペルソナ")
-
+st.header("ペルソナ入力")
 persona = st.text_area("ペルソナ", height=150)
 
 # =====================
-# ステップ2
+# 生成
 # =====================
-st.header("ステップ2：生成")
+def generate_once(system_prompt, user_prompt):
+    res = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        temperature=1.1  # 🔥 毎回変化
+    )
+    return res.choices[0].message.content
 
 if st.button("✨ 生成"):
 
     seed = random.randint(0, 999999)
 
+    # 🔥 トーン完全反映プロンプト
     system_prompt = f"""
 あなたは裏垢女子ツイート生成AI。
 
@@ -103,17 +121,21 @@ if st.button("✨ 生成"):
 エロさ:{tone_map(ero_level, "ero")}
 恥ずかしさ:{tone_map(hazukashi_level, "hazukashi")}
 
+【補足ルール】
+・エロさ100%の場合は明確で直接的な性的表現を含める
+・エロさ0%の場合は性的要素を完全排除
+
 【文字数】
 {tweet_length}文字前後（±5）
 
 【ルール】
-- 毎回違う内容
-- 同じ言い回し禁止
-- 自然な口語
-- 改行あり
+・毎回違う内容
+・同じ言い回し禁止
+・自然な口語
+・改行あり
 
-【重要】
-出力前にトーンがズレていないか自己チェックし修正すること
+【最重要】
+出力前にトーンと文字数を自己チェックし、ズレていたら修正
 
 【ランダム性】
 {seed}
@@ -134,16 +156,7 @@ if st.button("✨ 生成"):
 英語プロンプト
 """
 
-    res = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {"role":"system","content":system_prompt},
-            {"role":"user","content":user_prompt}
-        ],
-        temperature=1.1
-    )
-
-    raw = res.choices[0].message.content
+    raw = generate_once(system_prompt, user_prompt)
 
     results = []
     blocks = raw.split("###")
@@ -154,7 +167,7 @@ if st.button("✨ 生成"):
                 t = b.split("ツイート:")[1].split("画像:")[0].strip()
                 i = b.split("画像:")[1].strip()
 
-                # エロ0%のみブロック
+                # 🔥 エロ0%だけ制御
                 if ero_level == "0%":
                     if contains_ng(t):
                         continue
@@ -168,10 +181,18 @@ if st.button("✨ 生成"):
     st.session_state.results = results[:num_tweets]
 
 # =====================
-# 表示
+# 表示（安全展開）
 # =====================
 if "results" in st.session_state:
-    for i, (t, img) in enumerate(st.session_state.results):
+    for i, item in enumerate(st.session_state.results):
+
+        if len(item) == 2:
+            t, img = item
+        elif len(item) == 4:
+            _, t, img, _ = item
+        else:
+            continue
+
         st.markdown(f"### {i+1}")
         st.text_area("ツイート", t, key=f"t{i}")
         st.text_area("画像プロンプト", img, key=f"i{i}")
