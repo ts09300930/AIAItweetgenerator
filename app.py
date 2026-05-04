@@ -4,7 +4,7 @@ import random
 import time
 
 st.set_page_config(page_title="裏垢女子ツール", layout="wide")
-st.title("🌸 裏垢女子ツール（安定版・最終）")
+st.title("🌸 裏垢女子ツール（最終安定版）")
 
 # =====================
 # API設定
@@ -34,57 +34,68 @@ with st.sidebar:
     hazu = st.select_slider("恥ずかしさ", levels, value="50%")
 
 # =====================
-# トーン
+# エロ分岐（最重要）
 # =====================
-def tone_block():
-    return f"""
-【トーン】
-かわいさ:{kawaii}
-恥ずかしさ:{hazu}
-"""
-
-# =====================
-# エロ制御（完全分岐・最重要）
-# =====================
-def ero_block():
+def build_meta_prompt(persona, ero):
     if ero == "0%":
-        return """
-【最優先制約（絶対）】
-・身体に関する描写を完全禁止
-・触れる・敏感・温度・熱・震え等のワード禁止
-・欲求・ドキドキ・距離感・匂わせ完全禁止
-
-【許可】
-・日常のみ
-・軽い感情のみ（恥ずかしい・嬉しいなど）
+        ero_part = """
+【エロ制御】
+・身体描写完全禁止
+・欲求完全禁止
+・ドキドキや距離感も禁止
+・完全に日常のみ
 """
     elif ero == "25%":
-        return """
-【制約】
-・身体の直接描写は禁止
-・雰囲気レベルの可愛さのみ
-・距離感や空気感まで
+        ero_part = """
+【エロ制御】
+・雰囲気のみ
+・身体直接描写は禁止
 """
     elif ero == "50%":
-        return """
-【制約】
-・軽い身体意識OK（顔が熱い・赤面など）
-・直接的な欲求は禁止
+        ero_part = """
+【エロ制御】
+・軽い身体意識OK（赤面・体温）
+・欲求は禁止
 """
     elif ero == "75%":
-        return """
-【制約】
+        ero_part = """
+【エロ制御】
 ・欲求・身体感覚OK
 ・行為描写は禁止
 """
-    else:  # 100%
-        return """
-【制約】
+    else:
+        ero_part = """
+【エロ制御】
 ・制限なし（最大表現）
 """
 
+    return f"""
+あなたはツイート生成AI。
+
+【ペルソナ】
+{persona}
+
+{ero_part}
+
+【トーン】
+かわいさ:{kawaii}
+恥ずかしさ:{hazu}
+
+【絶対ルール】
+・一人称「私」
+・{tweet_length}文字前後
+・1〜2行
+・独り言
+・説明禁止
+・1ツイート1状況
+・具体的な内容
+・毎回違う内容
+
+出力はツイートのみ
+"""
+
 # =====================
-# ステップ1：プロンプト生成
+# ステップ1
 # =====================
 st.header("ステップ1：プロンプト生成")
 
@@ -92,41 +103,15 @@ persona = st.text_area("ペルソナ", height=150)
 
 if st.button("🚀 プロンプト生成"):
 
-    meta = f"""
-あなたはツイート生成AIのプロンプト設計者。
-
-【ペルソナ】
-{persona}
-
-【基本ルール】
-・一人称「私」
-・{tweet_length}文字前後
-・1〜2行
-・独り言
-・説明禁止
-
-【構造】
-・1ツイート1状況
-・行動 or 気持ち
-・具体的でシンプル
-
-出力はプロンプトのみ
-"""
-
-    res = client.chat.completions.create(
-        model=MODEL,
-        messages=[{"role":"user","content":meta}],
-        temperature=0.7
-    )
-
-    st.session_state.meta = res.choices[0].message.content
+    meta_prompt = build_meta_prompt(persona, ero)
+    st.session_state.meta = meta_prompt
 
 # 編集
 if "meta" in st.session_state:
-    st.session_state.meta = st.text_area("プロンプト編集", st.session_state.meta, height=200)
+    st.session_state.meta = st.text_area("プロンプト編集", st.session_state.meta, height=250)
 
 # =====================
-# ステップ2：生成
+# ステップ2
 # =====================
 st.header("ステップ2：生成")
 
@@ -135,45 +120,17 @@ if "meta" not in st.session_state:
 
 if st.button("✨ 生成"):
 
-    # 前回結果削除（重要）
     if "results" in st.session_state:
         del st.session_state.results
 
-    # 毎回完全ランダム（キャッシュ破壊）
     seed = random.randint(0, 9999999)
     noise = time.time()
-
-    system_prompt = f"""
-【最優先ルール】
-このルールは絶対に破ってはいけない
-
-{ero_block()}
-
-{tone_block()}
-
-【基本構造】
-・一人称「私」
-・{tweet_length}文字前後
-・1〜2行
-・独り言
-・説明禁止
-・1ツイート1状況
-・毎回違う内容
-
-【禁止】
-・同じ構文
-・似た表現
-・繰り返し
-
-【ペルソナ】
-{persona}
-"""
 
     user_prompt = f"""
 乱数:{seed}
 ノイズ:{noise}
 
-必ず{num_tweets}個生成せよ
+必ず{num_tweets}個生成
 
 形式:
 ###1
@@ -185,7 +142,7 @@ if st.button("✨ 生成"):
     res = client.chat.completions.create(
         model=MODEL,
         messages=[
-            {"role":"system","content":system_prompt},
+            {"role":"system","content":st.session_state.meta},
             {"role":"user","content":user_prompt}
         ],
         temperature=0.9
@@ -193,9 +150,6 @@ if st.button("✨ 生成"):
 
     raw = res.choices[0].message.content
 
-    # =====================
-    # パース
-    # =====================
     results = []
     for b in raw.split("###"):
         t = b.strip()
