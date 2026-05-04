@@ -1,13 +1,12 @@
 import streamlit as st
 from openai import OpenAI
 import random
-import time
 
 st.set_page_config(page_title="裏垢女子ツール", layout="wide")
-st.title("🌸 裏垢女子ツール（安定版・最終）")
+st.title("🌸 裏垢女子ツール（安定版）")
 
 # =====================
-# API設定
+# API設定（xAI対応）
 # =====================
 with st.sidebar:
     if "OPENAI_API_KEY" in st.secrets:
@@ -29,86 +28,68 @@ with st.sidebar:
     tweet_length = st.slider("文字数", 20, 120, 40)
 
     levels = ["0%", "25%", "50%", "75%", "100%"]
-    kawaii = st.select_slider("かわいさ", levels, value="50%")
-    ero = st.select_slider("エロさ", levels, value="0%")
-    hazu = st.select_slider("恥ずかしさ", levels, value="50%")
+    kawaii = st.select_slider("かわいさ", options=levels, value="50%")
+    ero = st.select_slider("エロさ", options=levels, value="0%")
+    hazu = st.select_slider("恥ずかしさ", options=levels, value="50%")
 
 # =====================
-# トーン
+# トーン変換
 # =====================
-def tone_block():
-    return f"""
-【トーン】
-かわいさ:{kawaii}
-恥ずかしさ:{hazu}
-"""
+def tone(level, kind):
+    return {
+        "kawaii":{
+            "0%":"無機質",
+            "25%":"少し柔らかい",
+            "50%":"自然",
+            "75%":"甘えた",
+            "100%":"強く甘える"
+        },
+        "ero":{
+            "0%":"性的要素禁止",
+            "25%":"雰囲気のみ",
+            "50%":"軽い色気",
+            "75%":"欲求あり",
+            "100%":"露骨"
+        },
+        "hazu":{
+            "0%":"堂々",
+            "25%":"少し照れ",
+            "50%":"恥ずかしい",
+            "75%":"かなり照れ",
+            "100%":"強い羞恥"
+        }
+    }[kind][level]
 
 # =====================
-# エロ制御（完全分岐・最重要）
-# =====================
-def ero_block():
-    if ero == "0%":
-        return """
-【最優先制約（絶対）】
-・身体に関する描写を完全禁止
-・触れる・敏感・温度・熱・震え等のワード禁止
-・欲求・ドキドキ・距離感・匂わせ完全禁止
-
-【許可】
-・日常のみ
-・軽い感情のみ（恥ずかしい・嬉しいなど）
-"""
-    elif ero == "25%":
-        return """
-【制約】
-・身体の直接描写は禁止
-・雰囲気レベルの可愛さのみ
-・距離感や空気感まで
-"""
-    elif ero == "50%":
-        return """
-【制約】
-・軽い身体意識OK（顔が熱い・赤面など）
-・直接的な欲求は禁止
-"""
-    elif ero == "75%":
-        return """
-【制約】
-・欲求・身体感覚OK
-・行為描写は禁止
-"""
-    else:  # 100%
-        return """
-【制約】
-・制限なし（最大表現）
-"""
-
-# =====================
-# ステップ1：プロンプト生成
+# UI
 # =====================
 st.header("ステップ1：プロンプト生成")
 
 persona = st.text_area("ペルソナ", height=150)
 
+# =====================
+# AI① プロンプト生成
+# =====================
 if st.button("🚀 プロンプト生成"):
 
     meta = f"""
-あなたはツイート生成AIのプロンプト設計者。
+あなたは裏垢女子ツイート生成プロンプト設計者。
 
-【ペルソナ】
-{persona}
+以下条件を満たすプロンプトを作成せよ：
 
-【基本ルール】
-・一人称「私」
+■トーン
+かわいさ:{tone(kawaii,"kawaii")}
+エロさ:{tone(ero,"ero")}
+恥ずかしさ:{tone(hazu,"hazu")}
+
+■ルール
 ・{tweet_length}文字前後
-・1〜2行
-・独り言
-・説明禁止
+・口語
+・改行あり
+・毎回違う内容
 
-【構造】
-・1ツイート1状況
-・行動 or 気持ち
-・具体的でシンプル
+■ペルソナ
+{persona}
 
 出力はプロンプトのみ
 """
@@ -119,66 +100,55 @@ if st.button("🚀 プロンプト生成"):
         temperature=0.7
     )
 
-    st.session_state.meta = res.choices[0].message.content
+    st.session_state.meta_prompt = res.choices[0].message.content
 
 # 編集
-if "meta" in st.session_state:
-    st.session_state.meta = st.text_area("プロンプト編集", st.session_state.meta, height=200)
+if "meta_prompt" in st.session_state:
+    edited = st.text_area("プロンプト編集", st.session_state.meta_prompt, height=200)
+    st.session_state.edited = edited
 
 # =====================
-# ステップ2：生成
+# AI② ツイート生成
 # =====================
 st.header("ステップ2：生成")
 
-if "meta" not in st.session_state:
+if "meta_prompt" not in st.session_state:
     st.stop()
 
 if st.button("✨ 生成"):
 
-    # 前回結果削除（重要）
+    # 🔥 前回結果削除
     if "results" in st.session_state:
         del st.session_state.results
 
-    # 毎回完全ランダム（キャッシュ破壊）
-    seed = random.randint(0, 9999999)
-    noise = time.time()
+    seed = random.randint(0,999999)
 
     system_prompt = f"""
-【最優先ルール】
-このルールは絶対に破ってはいけない
+{st.session_state.get("edited", st.session_state.meta_prompt)}
 
-{ero_block()}
+【最優先トーン】
+かわいさ:{tone(kawaii,"kawaii")}
+エロさ:{tone(ero,"ero")}
+恥ずかしさ:{tone(hazu,"hazu")}
 
-{tone_block()}
+【エロ制御（厳守）】
+0%: 性的表現完全禁止
+25%: 雰囲気のみ（身体・行為・欲求NG）
+50%: 軽いドキドキのみ
+75%: 欲求はOK（行為NG）
+100%: 制限なし
 
-【基本構造】
-・一人称「私」
-・{tweet_length}文字前後
-・1〜2行
-・独り言
-・説明禁止
-・1ツイート1状況
-・毎回違う内容
+違反した場合は書き直してから出力
 
-【禁止】
-・同じ構文
-・似た表現
-・繰り返し
-
-【ペルソナ】
-{persona}
+ランダム:{seed}
 """
 
     user_prompt = f"""
-乱数:{seed}
-ノイズ:{noise}
-
-必ず{num_tweets}個生成せよ
+{num_tweets}個生成
 
 形式:
 ###1
-本文
-###2
+ツイート:
 本文
 """
 
@@ -188,19 +158,19 @@ if st.button("✨ 生成"):
             {"role":"system","content":system_prompt},
             {"role":"user","content":user_prompt}
         ],
-        temperature=0.9
+        temperature=1.1
     )
 
     raw = res.choices[0].message.content
 
-    # =====================
-    # パース
-    # =====================
     results = []
     for b in raw.split("###"):
-        t = b.strip()
-        if t:
-            results.append(t)
+        if "ツイート:" in b:
+            try:
+                t = b.split("ツイート:")[1].strip()
+                results.append(t)
+            except:
+                pass
 
     st.session_state.results = results[:num_tweets]
 
@@ -208,5 +178,5 @@ if st.button("✨ 生成"):
 # 表示
 # =====================
 if "results" in st.session_state:
-    for i, t in enumerate(st.session_state.results):
+    for i,t in enumerate(st.session_state.results):
         st.text_area(f"ツイート{i+1}", t, key=f"t{i}")
