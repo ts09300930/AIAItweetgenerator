@@ -3,7 +3,7 @@ from openai import OpenAI
 
 st.set_page_config(page_title="裏垢女子ツール（トーン調整最終版）", layout="wide")
 st.title("🌸 裏垢女子ツイート生成ツール")
-st.caption("生成数固定維持 | トーン調整が毎回確実に反映")
+st.caption("生成数・トーン調整が毎回確実に反映")
 
 # =====================
 # API設定
@@ -113,7 +113,9 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
 
 【現在のトーン調整を最優先で厳密に反映】
 - かわいさ: {kawaii}%強く出す
-- エロさ: {ero}%強く出す（エロさが0%の場合は一切の性的表現・欲情描写・身体のエロい描写を完全排除）
+- エロさ: {ero}%強く出す
+  - エロさが0%の場合は一切の性的表現・欲情描写・身体のエロい描写を完全排除
+  - エロさが80%以上であれば直接的で露骨な性的表現を強く出す
 - 恥ずかしさ: {hazukashi}%強く出す
 
 出力形式:
@@ -157,4 +159,4 @@ if "last_tweets" in st.session_state:
         st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
 st.divider()
-st.caption("生成数・トーン調整が毎回確実に反映 | 生成ボタン押すたびに新しい内容が出る")
+st.caption("生成ボタン押すたびに新しい内容が出る | トーン調整厳密反映")
