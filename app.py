@@ -1,10 +1,9 @@
 import streamlit as st
 from openai import OpenAI
-import json
 
 st.set_page_config(page_title="裏垢女子ツール（最終版）", layout="wide")
 st.title("🌸 裏垢女子ツイート生成ツール")
-st.caption("生成数・トーン調整が確実に反映 | 再生成で内容が変わる")
+st.caption("生成数スライダーが確実に効く | 再生成で内容が変わる")
 
 # =====================
 # API設定
@@ -102,7 +101,8 @@ if "meta_prompt" not in st.session_state:
 
 if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
     # 毎回完全にクリア
-    st.session_state.pop("last_tweets", None)
+    if "last_tweets" in st.session_state:
+        del st.session_state.last_tweets
 
     with st.spinner(f"AI②が{num_tweets}パターン生成中..."):
         gen = f"""以下のペルソナに完全に沿った自然な裏垢女子のXツイートを**正確に{num_tweets}個**作成してください。
@@ -118,14 +118,17 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
 - 各ツイートは明確に異なる内容にする
 - かわいさ{kawaii}%・エロさ{ero}%・恥ずかしさ{hazukashi}%を厳密に反映（エロさ0%の場合は一切の性的表現を完全排除）
 
-**必ず以下のJSON形式で出力**：
-{{
-  "tweets": [
-    "ツイート1の完全な本文",
-    "ツイート2の完全な本文",
-    ... 合計でちょうど{num_tweets}個
-  ]
-}}"""
+**出力形式を厳密に守ること**：
+ツイート1:
+（本文）
+
+ツイート2:
+（本文）
+
+ツイート3:
+（本文）
+
+... 合計でちょうど{num_tweets}個まで続ける"""
 
         use_prompt = st.session_state.get("edited_meta_prompt", st.session_state.meta_prompt)
 
@@ -137,29 +140,19 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
         )
         result = res.choices[0].message.content.strip()
 
-        # JSONパースを最優先
+        # 番号付きで確実にパース
         tweets = []
-        try:
-            if "```json" in result:
-                json_str = result.split("```json")[1].split("```")[0].strip()
-            else:
-                json_str = result[result.find("{"):result.rfind("}") + 1]
-            data = json.loads(json_str)
-            tweets = data.get("tweets", [])
-        except:
-            # フォールバック
-            tweets = []
-            current = ""
-            for line in result.split("\n"):
-                line = line.strip()
-                if line.startswith("ツイート") and ":" in line:
-                    if current:
-                        tweets.append(current.strip())
-                    current = ""
-                elif line and not line.startswith("（本文）"):
-                    current += line + "\n"
-            if current:
-                tweets.append(current.strip())
+        current = ""
+        for line in result.split("\n"):
+            line = line.strip()
+            if line.startswith("ツイート") and ":" in line:
+                if current:
+                    tweets.append(current.strip())
+                current = ""
+            elif line and not line.startswith("（本文）"):
+                current += line + "\n"
+        if current:
+            tweets.append(current.strip())
 
         st.session_state.last_tweets = tweets[:num_tweets]
         st.success(f"✅ {len(st.session_state.last_tweets)}パターン生成完了！")
