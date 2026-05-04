@@ -1,10 +1,9 @@
 import streamlit as st
 from openai import OpenAI
-import json
 
-st.set_page_config(page_title="裏垢女子ツール（エロ調整強化版）", layout="wide")
+st.set_page_config(page_title="裏垢女子ツール（シンプル版）", layout="wide")
 st.title("🌸 裏垢女子ツイート生成ツール")
-st.caption("エロさ0% = 全くエロくない | エロさ100% = 直接的表現")
+st.caption("シンプル版 | 生成数・トーン調整が確実に反映")
 
 # =====================
 # API設定
@@ -62,7 +61,7 @@ if st.button("🚀 AI①にプロンプトを設計させる", type="primary"):
 
 【トーン調整を厳密に反映】
 - かわいさ: {kawaii}%強く出す
-- エロさ: {ero}%強く出す（エロさが0%の場合は一切の性的表現・欲情描写・身体のエロい描写を完全排除）
+- エロさ: {ero}%強く出す（エロさが0%の場合は一切の性的表現を完全排除）
 - 恥ずかしさ: {hazukashi}%強く出す
 
 ペルソナ:
@@ -115,17 +114,17 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
 - 短い自然な口語体
 - 自然な改行を入れて読みやすく
 - 吐息は1ツイートに最大2回まで
-- 各ツイートは明確に異なる内容にする（重複厳禁）
+- 各ツイートは明確に異なる内容にする
 - かわいさ{kawaii}%・エロさ{ero}%・恥ずかしさ{hazukashi}%を厳密に反映（エロさ0%の場合は一切の性的表現を排除）
 
-**必ず以下のJSON形式で出力**：
-{{
-  "tweets": [
-    "ツイート1の完全な本文",
-    "ツイート2の完全な本文",
-    ... 合計でちょうど{num_tweets}個
-  ]
-}}"""
+出力形式:
+ツイート1:
+（本文）
+
+ツイート2:
+（本文）
+
+... 合計でちょうど{num_tweets}個まで"""
 
         use_prompt = st.session_state.get("edited_meta_prompt", st.session_state.meta_prompt)
 
@@ -138,26 +137,17 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
         result = res.choices[0].message.content.strip()
 
         tweets = []
-        try:
-            if "```json" in result:
-                json_str = result.split("```json")[1].split("```")[0].strip()
-            else:
-                json_str = result[result.find("{"):result.rfind("}") + 1]
-            data = json.loads(json_str)
-            tweets = data.get("tweets", [])
-        except:
-            tweets = []
-            current = ""
-            for line in result.split("\n"):
-                line = line.strip()
-                if line.startswith("ツイート") and ":" in line:
-                    if current:
-                        tweets.append(current.strip())
-                    current = ""
-                elif line and not line.startswith("（本文）"):
-                    current += line + "\n"
-            if current:
-                tweets.append(current.strip())
+        current = ""
+        for line in result.split("\n"):
+            line = line.strip()
+            if line.startswith("ツイート") and ":" in line:
+                if current:
+                    tweets.append(current.strip())
+                current = ""
+            elif line and not line.startswith("（本文）"):
+                current += line + "\n"
+        if current:
+            tweets.append(current.strip())
 
         st.session_state.last_tweets = tweets[:num_tweets]
         st.success(f"✅ {len(st.session_state.last_tweets)}パターン生成完了！")
@@ -168,4 +158,4 @@ if "last_tweets" in st.session_state:
         st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
 st.divider()
-st.caption("エロさ0% = 一切エロくない | エロさ100% = 直接的表現")
+st.caption("生成ボタン押すたびに新しい内容が出る | トーン調整厳密反映")
