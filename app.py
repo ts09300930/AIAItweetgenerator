@@ -2,9 +2,9 @@ import streamlit as st
 from openai import OpenAI
 import json
 
-st.set_page_config(page_title="裏垢女子ツール（トーン調整強化版）", layout="wide")
+st.set_page_config(page_title="裏垢女子ツール（エロ調整強化版）", layout="wide")
 st.title("🌸 裏垢女子ツイート生成ツール")
-st.caption("トーン調整が効く | 再生成で内容が変わる | 現在の良いプロンプト維持")
+st.caption("エロさ0% = 全くエロくない | エロさ100% = 直接的表現")
 
 # =====================
 # API設定
@@ -36,7 +36,7 @@ with st.sidebar:
     st.divider()
     st.markdown("### 🎚️ トーン調整")
     kawaii = st.slider("かわいさ", 0, 100, 65)
-    ero = st.slider("エロさ", 0, 100, 35)
+    ero = st.slider("エロさ", 0, 100, 0)
     hazukashi = st.slider("恥ずかしさ", 0, 100, 70)
 
 # =====================
@@ -60,10 +60,10 @@ if st.button("🚀 AI①にプロンプトを設計させる", type="primary"):
 - 絵文字・マークダウン一切禁止
 - 吐息は1ツイートに最大2回まで
 
-【トーン調整を強く反映】
-- かわいさを{kawaii}％強く出す
-- エロさを{ero}％強く出す
-- 恥ずかしさを{hazukashi}％強く出す
+【トーン調整を厳密に反映】
+- かわいさ: {kawaii}%強く出す
+- エロさ: {ero}%強く出す（エロさが0%の場合は一切の性的表現・欲情描写・身体のエロい描写を完全排除）
+- 恥ずかしさ: {hazukashi}%強く出す
 
 ペルソナ:
 {persona}
@@ -91,7 +91,7 @@ if "meta_prompt" in st.session_state:
             st.rerun()
 
 # =====================
-# ステップ2: 生成（再生成で必ず変わる）
+# ステップ2
 # =====================
 st.divider()
 st.header("ステップ2: ペルソナからAI②が自然にツイートを生成")
@@ -101,7 +101,6 @@ if "meta_prompt" not in st.session_state:
     st.stop()
 
 if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
-    # 毎回新しい生成を強制
     if "last_tweets" in st.session_state:
         del st.session_state.last_tweets
 
@@ -117,7 +116,7 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
 - 自然な改行を入れて読みやすく
 - 吐息は1ツイートに最大2回まで
 - 各ツイートは明確に異なる内容にする（重複厳禁）
-- かわいさ{kawaii}％・エロさ{ero}％・恥ずかしさ{hazukashi}％を強く反映
+- かわいさ{kawaii}%・エロさ{ero}%・恥ずかしさ{hazukashi}%を厳密に反映（エロさ0%の場合は一切の性的表現を排除）
 
 **必ず以下のJSON形式で出力**：
 {{
@@ -133,12 +132,11 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
         res = client.chat.completions.create(
             model=MODEL,
             messages=[{"role": "system", "content": use_prompt}, {"role": "user", "content": gen}],
-            temperature=0.92,   # 多様性を最大化
+            temperature=0.92,
             max_tokens=8000
         )
         result = res.choices[0].message.content.strip()
 
-        # JSONパース
         tweets = []
         try:
             if "```json" in result:
@@ -148,7 +146,6 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
             data = json.loads(json_str)
             tweets = data.get("tweets", [])
         except:
-            # フォールバック
             tweets = []
             current = ""
             for line in result.split("\n"):
@@ -171,4 +168,4 @@ if "last_tweets" in st.session_state:
         st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
 st.divider()
-st.caption("生成ボタン押すたびに新しい内容が出る | トーン調整強化")
+st.caption("エロさ0% = 一切エロくない | エロさ100% = 直接的表現")
