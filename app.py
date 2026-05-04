@@ -3,11 +3,11 @@ from openai import OpenAI
 import re
 
 st.set_page_config(page_title="裏垢女子ツール", layout="wide")
-st.title("🌸 裏垢女子ツイート生成ツール（完全版）")
-st.caption("トーン反映 + NG制御 + スコアリング")
+st.title("🌸 裏垢女子ツイート生成ツール（ランキング版）")
+st.caption("件数保証 + NG制御 + スコア上位表示")
 
 # =====================
-# NGワード（最低限）
+# NGワード
 # =====================
 NG_WORDS = [
     "エロ","エッチ","ムラムラ","興奮","欲情",
@@ -19,11 +19,11 @@ def contains_ng(text):
     return any(w in text for w in NG_WORDS)
 
 # =====================
-# AIチェック（軽量）
+# AI検閲
 # =====================
 def ai_check(client, model, text):
     prompt = f"""
-以下に性的・センシティブ要素があるか判定せよ
+以下の文章に性的・センシティブ要素が含まれているか判定せよ
 
 {text}
 
@@ -37,37 +37,11 @@ SAFE or NG
     return "NG" in res.choices[0].message.content
 
 # =====================
-# 再生成ループ
+# スコア
 # =====================
-def generate_safe(client, model, system_prompt, user_prompt, ero, max_retry=3):
-    for _ in range(max_retry):
-
-        res = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role":"system","content":system_prompt},
-                {"role":"user","content":user_prompt}
-            ],
-            temperature=0.9
-        )
-
-        output = res.choices[0].message.content
-
-        # 🔥 エロ0%時のみ強制フィルタ
-        if ero == 0:
-            if contains_ng(output) or ai_check(client, model, output):
-                continue
-
-        return output
-
-    return output  # 最後の結果を返す（完全失敗回避）
-
-# =====================
-# スコアリング
-# =====================
-def score(client, model, text):
+def score_tweet(client, model, text):
     prompt = f"""
-以下のツイートを評価（10点満点）
+以下のツイートを評価（各10点満点）
 
 {text}
 
@@ -80,7 +54,62 @@ def score(client, model, text):
         messages=[{"role":"user","content":prompt}],
         temperature=0.3
     )
+    out = res.choices[0].message.content
+
+    # 数値抽出（雑でOK）
+    nums = re.findall(r"\d+", out)
+    total = sum(map(int, nums[:3])) if len(nums) >= 3 else 0
+
+    return total, out
+
+# =====================
+# 生成（1回）
+# =====================
+def generate_once(client, model, system_prompt, user_prompt):
+    res = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role":"system","content":system_prompt},
+            {"role":"user","content":user_prompt}
+        ],
+        temperature=0.9
+    )
     return res.choices[0].message.content
+
+# =====================
+# 安全＋補充生成
+# =====================
+def generate_pool(client, model, system_prompt, user_prompt, ero, target_n):
+    results = []
+    max_loop = 6
+
+    for _ in range(max_loop):
+        raw = generate_once(client, model, system_prompt, user_prompt)
+        blocks = raw.split("###")
+
+        for b in blocks:
+            if "ツイート:" in b:
+                try:
+                    t = b.split("ツイート:")[1].split("画像:")[0].strip()
+                    i = b.split("画像:")[1].strip()
+
+                    # 🔥 エロ0%時のみ検閲
+                    if ero == 0:
+                        if contains_ng(t) or ai_check(client, model, t):
+                            continue
+
+                        # 画像の軽いクリーン化
+                        i = i.replace("erotic","soft").replace("lewd","natural").replace("sensual","gentle")
+
+                    results.append((t, i))
+
+                    if len(results) >= target_n:
+                        return results
+
+                except:
+                    continue
+
+    return results
 
 # =====================
 # API設定
@@ -102,8 +131,10 @@ with st.sidebar:
         client = OpenAI(api_key=api_key)
         MODEL = "gpt-4o-mini"
 
-    num_tweets = st.slider("生成数", 1, 30, 5)
-    tweet_length = st.slider("文字数", 10, 250, 140)
+    num_tweets = st.slider("生成数", 1, 30, 10)
+    top_k = st.slider("表示する上位数", 1, 10, 5)
+
+    tweet_length = st.slider("文字数", 10, 250, 60)
 
     kawaii = st.slider("かわいさ", 0, 100, 65)
     ero = st.slider("エロさ", 0, 100, 0)
@@ -117,10 +148,8 @@ st.header("ステップ1")
 persona = st.text_area("ペルソナ", height=150)
 
 if st.button("🚀 プロンプト生成"):
-
     meta = f"""
-トーンを必ず含める:
-
+トーン:
 かわいさ:{kawaii}%
 エロさ:{ero}%
 恥ずかしさ:{hazukashi}%
@@ -128,20 +157,17 @@ if st.button("🚀 プロンプト生成"):
 ペルソナ:
 {persona}
 
-ツイート生成用プロンプトのみ出力
+ツイート生成プロンプトのみ出力
 """
-
     res = client.chat.completions.create(
         model=MODEL,
         messages=[{"role":"user","content":meta}],
         temperature=0.7
     )
-
     st.session_state.meta_prompt = res.choices[0].message.content
 
-# 編集
 if "meta_prompt" in st.session_state:
-    edited = st.text_area("プロンプト", st.session_state.meta_prompt, height=200)
+    edited = st.text_area("プロンプト編集", st.session_state.meta_prompt, height=200)
     st.session_state.edited_meta_prompt = edited
 
 # =====================
@@ -154,7 +180,7 @@ if "meta_prompt" not in st.session_state:
 
 if st.button("✨ 生成"):
 
-    dynamic_prompt = f"""
+    system_prompt = f"""
 {st.session_state.get("edited_meta_prompt")}
 
 最優先:
@@ -163,50 +189,42 @@ if st.button("✨ 生成"):
 恥ずかしさ:{hazukashi}%
 """
 
-    gen = f"""
+    user_prompt = f"""
 {num_tweets}個生成
 
 形式:
-
 ###1
 ツイート:
 本文
 
 画像:
 英語
-
-###2
 """
 
-    raw = generate_safe(client, MODEL, dynamic_prompt, gen, ero)
+    # 🔥 多めに生成（スコア選別のため）
+    pool = generate_pool(client, MODEL, system_prompt, user_prompt, ero, num_tweets * 2)
 
-    # =====================
-    # パース
-    # =====================
-    blocks = raw.split("###")
-    results = []
+    scored = []
+    for t, i in pool:
+        s, detail = score_tweet(client, MODEL, t)
+        scored.append((s, t, i, detail))
 
-    for b in blocks:
-        if "ツイート:" in b:
-            try:
-                t = b.split("ツイート:")[1].split("画像:")[0].strip()
-                i = b.split("画像:")[1].strip()
-                results.append((t, i))
-            except:
-                continue
+    # スコア順
+    scored.sort(reverse=True, key=lambda x: x[0])
 
-    st.session_state.results = results[:num_tweets]
+    # 上位だけ
+    final = scored[:top_k]
+
+    st.session_state.results = final
 
 # =====================
 # 表示
 # =====================
 if "results" in st.session_state:
 
-    for i, (t, img) in enumerate(st.session_state.results):
-        st.markdown(f"### {i+1}")
+    for idx, (score_val, t, img, detail) in enumerate(st.session_state.results):
+        st.markdown(f"## #{idx+1}（スコア:{score_val}）")
 
-        st.text_area("ツイート", t, key=f"t{i}")
-        st.text_area("画像", img, key=f"i{i}")
-
-        sc = score(client, MODEL, t)
-        st.text_area("スコア", sc, key=f"s{i}")
+        st.text_area("ツイート", t, key=f"t{idx}")
+        st.text_area("画像", img, key=f"i{idx}")
+        st.text_area("評価", detail, key=f"s{idx}")
