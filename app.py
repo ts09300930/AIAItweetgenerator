@@ -2,9 +2,9 @@ import streamlit as st
 from openai import OpenAI
 import json
 
-st.set_page_config(page_title="裏垢女子ツール（画像プロンプト強化版）", layout="wide")
+st.set_page_config(page_title="裏垢女子ツール（生成数完全対応）", layout="wide")
 st.title("🌸 裏垢女子ツイート生成ツール")
-st.caption("ペルソナ中心 | 現在の良いプロンプト維持 | ペルソナからランダム画像プロンプト生成")
+st.caption("生成数1〜30まで確実に反映 | JSONパース強化済み")
 
 # =====================
 # API設定
@@ -91,7 +91,7 @@ if "meta_prompt" in st.session_state:
             st.rerun()
 
 # =====================
-# ステップ2: ツイート生成
+# ステップ2: 生成（JSON強制 + 超堅牢パース）
 # =====================
 st.divider()
 st.header("ステップ2: ペルソナからAI②が自然にツイートを生成")
@@ -114,12 +114,12 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
 - 吐息は1ツイートに最大2回まで
 - 各ツイートは明確に異なる内容にする（重複厳禁）
 
-**必ず以下のJSON形式で出力**：
+**必ず以下のJSON形式で出力**（他の文字は一切入れない）：
 {{
   "tweets": [
     "ツイート1の完全な本文",
     "ツイート2の完全な本文",
-    ...
+    ... 合計でちょうど{num_tweets}個
   ]
 }}"""
 
@@ -128,34 +128,29 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
         res = client.chat.completions.create(
             model=MODEL,
             messages=[{"role": "system", "content": use_prompt}, {"role": "user", "content": gen}],
-            temperature=0.75,
-            max_tokens=6000
+            temperature=0.7,
+            max_tokens=8000
         )
         result = res.choices[0].message.content.strip()
 
+        # JSONパースを最優先
+        tweets = []
         try:
             if "```json" in result:
                 json_str = result.split("```json")[1].split("```")[0].strip()
             else:
                 json_str = result[result.find("{"):result.rfind("}") + 1]
             data = json.loads(json_str)
-            st.session_state.last_tweets = data.get("tweets", [])[:num_tweets]
+            tweets = data.get("tweets", [])
         except:
-            # フォールバック
-            tweets = []
-            current = ""
+            # JSON失敗時の超頑丈フォールバック
             for line in result.split("\n"):
                 line = line.strip()
-                if line.startswith("ツイート") and ":" in line:
-                    if current:
-                        tweets.append(current.strip())
-                    current = ""
-                elif line and not line.startswith("（本文）"):
-                    current += line + "\n"
-            if current:
-                tweets.append(current.strip())
-            st.session_state.last_tweets = tweets[:num_tweets]
+                if line and not line.startswith("ツイート") and not line.startswith("（本文）") and not line.startswith("{") and not line.startswith("}"):
+                    if len(tweets) < num_tweets:
+                        tweets.append(line)
 
+        st.session_state.last_tweets = tweets[:num_tweets]
         st.success(f"✅ {len(st.session_state.last_tweets)}パターン生成完了！")
 
 if "last_tweets" in st.session_state:
@@ -163,35 +158,5 @@ if "last_tweets" in st.session_state:
     for i, t in enumerate(st.session_state.last_tweets):
         st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
-# =====================
-# 新機能：ペルソナからランダム画像プロンプト生成
-# =====================
 st.divider()
-st.header("🖼️ ペルソナからランダム画像プロンプト生成")
-
-if st.button("🖼️ ペルソナに基づいて5つの異なる画像プロンプトをランダム生成", type="primary"):
-    with st.spinner("ペルソナから画像プロンプトを生成中..."):
-        img_prompt = f"""以下のペルソナの女の子を題材に、**5つ異なるシチュエーション**の画像プロンプトを作成してください。
-
-ペルソナ:
-{st.session_state.get("persona", persona)}
-
-【要件】
-- 各プロンプトはStable Diffusion / NovelAIなどで使える高品質な英語プロンプト
-- 低身長・童顔・貧乳などの特徴を自然に反映
-- 清楚だけどエロかわいい雰囲気
-- 5つは明確に異なるシチュエーションにする
-- 自然な照明、リアルな質感を重視
-
-出力は番号付きで5つだけ。余計な説明は一切不要。"""
-
-        res = client.chat.completions.create(
-            model=MODEL,
-            messages=[{"role": "user", "content": img_prompt}],
-            temperature=0.85
-        )
-        st.success("✅ ペルソナから5つの画像プロンプトを生成しました！")
-        st.code(res.choices[0].message.content.strip())
-
-st.divider()
-st.caption("現在の良いプロンプトを維持 | ペルソナからランダム画像プロンプト生成機能追加")
+st.caption("生成数1〜30まで確実に反映 | JSON強制 + 超堅牢パース")
