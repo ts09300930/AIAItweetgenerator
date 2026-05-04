@@ -3,7 +3,7 @@ from openai import OpenAI
 
 st.set_page_config(page_title="裏垢女子ツール", layout="wide")
 st.title("🌸 裏垢女子ツイート生成ツール")
-st.caption("生成数・トーン調整が毎回確実に反映")
+st.caption("生成数・トーン調整が毎回確実に反映2")
 
 # =====================
 # API設定
