@@ -3,10 +3,10 @@ from openai import OpenAI
 import random
 
 st.set_page_config(page_title="裏垢女子ツール", layout="wide")
-st.title("🌸 裏垢女子ツール（安定版）")
+st.title("🌸 裏垢女子ツール（最終安定版）")
 
 # =====================
-# API設定
+# API
 # =====================
 with st.sidebar:
     if "OPENAI_API_KEY" in st.secrets:
@@ -28,45 +28,12 @@ with st.sidebar:
     tweet_length = st.slider("文字数", 20, 120, 40)
 
     levels = ["0%", "25%", "50%", "75%", "100%"]
-    kawaii = st.select_slider("かわいさ", levels, value="50%")
-    ero = st.select_slider("エロさ", levels, value="0%")
-    hazu = st.select_slider("恥ずかしさ", levels, value="50%")
+    kawaii = st.select_slider("かわいさ", levels, "50%")
+    ero = st.select_slider("エロさ", levels, "0%")
+    hazu = st.select_slider("恥ずかしさ", levels, "50%")
 
 # =====================
-# トーン
-# =====================
-def tone_block():
-    return f"""
-かわいさ:{kawaii}
-恥ずかしさ:{hazu}
-"""
-
-# =====================
-# エロ制御（完全分岐）
-# =====================
-def ero_rules():
-    if ero == "0%":
-        return """
-【エロ制御】
-・日常内容のみ
-・身体描写禁止
-・欲求禁止
-・距離感表現禁止
-・ドキドキ禁止
-"""
-    else:
-        return f"""
-【エロ制御】
-25%: 雰囲気のみ
-50%: 軽い身体意識
-75%: 欲求あり（行為NG）
-100%: 制限なし
-
-現在:{ero}
-"""
-
-# =====================
-# ステップ1
+# ステップ1（フォーマットのみ）
 # =====================
 st.header("ステップ1：プロンプト生成")
 
@@ -80,17 +47,12 @@ if st.button("🚀 プロンプト生成"):
 【ペルソナ】
 {persona}
 
-【ルール】
+【出力フォーマット】
 ・一人称「私」
-・{tweet_length}文字前後
+・{tweet_length}文字前後（±5）
 ・1〜2行
-・独り言
+・独り言で終わる
 ・説明禁止
-
-【構造】
-・1ツイート1状況
-・行動 または 日常の気持ち
-・具体的でシンプルな内容
 
 出力はプロンプトのみ
 """
@@ -103,9 +65,29 @@ if st.button("🚀 プロンプト生成"):
 
     st.session_state.meta = res.choices[0].message.content
 
-# 編集
 if "meta" in st.session_state:
     st.session_state.meta = st.text_area("プロンプト編集", st.session_state.meta, height=200)
+
+# =====================
+# エロ制御（完全分離）
+# =====================
+def ero_block():
+    if ero == "0%":
+        return """
+【内容制御】
+・日常のみ
+・身体描写禁止
+・欲求禁止
+・恋愛要素禁止
+"""
+    elif ero == "25%":
+        return "・軽いドキドキまで"
+    elif ero == "50%":
+        return "・軽い身体意識OK（距離感）"
+    elif ero == "75%":
+        return "・欲求あり（行為NG）"
+    else:
+        return "・制限なし"
 
 # =====================
 # ステップ2
@@ -125,13 +107,15 @@ if st.button("✨ 生成"):
     system_prompt = f"""
 {st.session_state.meta}
 
-{tone_block()}
+【トーン】
+かわいさ:{kawaii}
+恥ずかしさ:{hazu}
 
-{ero_rules()}
+{ero_block()}
 
-【禁止】
-・同じ表現
-・似た構造
+【多様性】
+・毎回違う内容
+・似た構造禁止
 """
 
     user_prompt = f"""
@@ -166,5 +150,5 @@ if st.button("✨ 生成"):
 # 表示
 # =====================
 if "results" in st.session_state:
-    for i, t in enumerate(st.session_state.results):
+    for i,t in enumerate(st.session_state.results):
         st.text_area(f"ツイート{i+1}", t, key=f"t{i}")
