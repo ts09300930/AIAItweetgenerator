@@ -1,7 +1,7 @@
 import streamlit as st
 from openai import OpenAI
 
-st.set_page_config(page_title="裏垢女子ツール（シンプル版）", layout="wide")
+st.set_page_config(page_title="裏垢女子ツール", layout="wide")
 st.title("🌸 裏垢女子ツイート生成ツール")
 st.caption("シンプル版 | 生成数・トーン調整が確実に反映")
 
@@ -100,6 +100,7 @@ if "meta_prompt" not in st.session_state:
     st.stop()
 
 if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
+    # 毎回クリアして新しい生成を強制
     if "last_tweets" in st.session_state:
         del st.session_state.last_tweets
 
