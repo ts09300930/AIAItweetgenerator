@@ -2,11 +2,11 @@ import streamlit as st
 from openai import OpenAI
 
 st.set_page_config(page_title="裏垢女子ツール", layout="wide")
-st.title("🌸 裏垢女子ツイート生成ツール（高速＋安定版）")
-st.caption("AI検閲あり / スコアなし / エラー完全対策")
+st.title("🌸 裏垢女子ツイート生成ツール（文字数強制版）")
+st.caption("文字数固定 + AI検閲あり + 高速")
 
 # =====================
-# セッション初期化（重要）
+# セッション初期化
 # =====================
 if "results" in st.session_state:
     try:
@@ -65,15 +65,15 @@ with st.sidebar:
         client = OpenAI(api_key=api_key)
         MODEL = "gpt-4o-mini"
 
-    num_tweets = st.slider("生成数", 1, 30, 10)
-    tweet_length = st.slider("文字数", 10, 250, 60)
+    num_tweets = st.slider("生成数", 1, 30, 5)
+    tweet_length = st.slider("文字数", 20, 120, 40)
 
     kawaii = st.slider("かわいさ", 0, 100, 65)
     ero = st.slider("エロさ", 0, 100, 0)
     hazukashi = st.slider("恥ずかしさ", 0, 100, 70)
 
 # =====================
-# ステップ1
+# ステップ1（プロンプト生成）
 # =====================
 st.header("ステップ1")
 
@@ -81,15 +81,29 @@ persona = st.text_area("ペルソナ", height=150)
 
 if st.button("🚀 プロンプト生成"):
     meta = f"""
-トーン:
+あなたは裏垢女子ツイート生成のプロンプトエンジニアです。
+
+以下を厳守したプロンプトを作成してください。
+
+【トーン】
 かわいさ:{kawaii}%
 エロさ:{ero}%
 恥ずかしさ:{hazukashi}%
 
-ペルソナ:
+【文字数ルール】
+・1ツイートは{tweet_length}文字前後（±5文字以内）
+・必ず文字数を意識して出力すること
+・短すぎる・長すぎる文章は禁止
+
+【表現ルール】
+・自然な口語
+・改行あり
+・吐息は最大2回まで
+
+【ペルソナ】
 {persona}
 
-ツイート生成用プロンプトのみ出力
+出力は「生成用プロンプトのみ」
 """
     res = client.chat.completions.create(
         model=MODEL,
@@ -103,7 +117,7 @@ if "meta_prompt" in st.session_state:
     st.session_state.edited_meta_prompt = edited
 
 # =====================
-# ステップ2
+# ステップ2（生成）
 # =====================
 st.header("ステップ2")
 
@@ -123,10 +137,14 @@ def generate_once(system_prompt, user_prompt):
 
 if st.button("✨ 生成"):
 
+    # 🔥 ここで文字数ルールを強制上書き
     system_prompt = f"""
 {st.session_state.get("edited_meta_prompt")}
 
-最優先:
+【最優先ルール】
+・1ツイートは必ず{tweet_length}文字前後（±5文字）
+・必ず文字数を意識して生成すること
+
 かわいさ:{kawaii}%
 エロさ:{ero}%
 恥ずかしさ:{hazukashi}%
@@ -141,7 +159,7 @@ if st.button("✨ 生成"):
 本文
 
 画像:
-英語
+英語プロンプト
 """
 
     results = []
@@ -157,12 +175,12 @@ if st.button("✨ 生成"):
                     t = b.split("ツイート:")[1].split("画像:")[0].strip()
                     i = b.split("画像:")[1].strip()
 
-                    # 🔥 エロ0%時のみ検閲
+                    # エロ0%制御
                     if ero == 0:
                         if contains_ng(t) or ai_check(client, MODEL, t):
                             continue
 
-                        i = i.replace("erotic", "soft").replace("lewd", "natural")
+                        i = "portrait of a cute petite adult woman, soft lighting, natural expression"
 
                     results.append((t, i))
 
@@ -178,17 +196,13 @@ if st.button("✨ 生成"):
     st.session_state.results = results[:num_tweets]
 
 # =====================
-# 表示（安全版）
+# 表示
 # =====================
 if "results" in st.session_state:
 
     for i, item in enumerate(st.session_state.results):
-
-        # 🔥 安全展開（ここが重要）
         if len(item) == 2:
             t, img = item
-        elif len(item) == 4:
-            _, t, img, _ = item
         else:
             continue
 
