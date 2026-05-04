@@ -2,8 +2,18 @@ import streamlit as st
 from openai import OpenAI
 
 st.set_page_config(page_title="裏垢女子ツール", layout="wide")
-st.title("🌸 裏垢女子ツイート生成ツール（高速＋安全版）")
-st.caption("AI検閲あり / スコア削除で高速化")
+st.title("🌸 裏垢女子ツイート生成ツール（高速＋安定版）")
+st.caption("AI検閲あり / スコアなし / エラー完全対策")
+
+# =====================
+# セッション初期化（重要）
+# =====================
+if "results" in st.session_state:
+    try:
+        if len(st.session_state.results) > 0 and len(st.session_state.results[0]) != 2:
+            del st.session_state.results
+    except:
+        del st.session_state.results
 
 # =====================
 # NGワード
@@ -22,7 +32,7 @@ def contains_ng(text):
 # =====================
 def ai_check(client, model, text):
     prompt = f"""
-以下に性的要素が含まれるか判定せよ
+以下の文章に性的要素が含まれているか判定せよ
 
 {text}
 
@@ -30,7 +40,7 @@ SAFE or NG
 """
     res = client.chat.completions.create(
         model=model,
-        messages=[{"role":"user","content":prompt}],
+        messages=[{"role": "user", "content": prompt}],
         temperature=0
     )
     return "NG" in res.choices[0].message.content
@@ -79,11 +89,11 @@ if st.button("🚀 プロンプト生成"):
 ペルソナ:
 {persona}
 
-ツイート生成プロンプトのみ出力
+ツイート生成用プロンプトのみ出力
 """
     res = client.chat.completions.create(
         model=MODEL,
-        messages=[{"role":"user","content":meta}],
+        messages=[{"role": "user", "content": meta}],
         temperature=0.7
     )
     st.session_state.meta_prompt = res.choices[0].message.content
@@ -104,8 +114,8 @@ def generate_once(system_prompt, user_prompt):
     res = client.chat.completions.create(
         model=MODEL,
         messages=[
-            {"role":"system","content":system_prompt},
-            {"role":"user","content":user_prompt}
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ],
         temperature=0.85
     )
@@ -147,12 +157,12 @@ if st.button("✨ 生成"):
                     t = b.split("ツイート:")[1].split("画像:")[0].strip()
                     i = b.split("画像:")[1].strip()
 
-                    # 🔥 AI検閲あり
+                    # 🔥 エロ0%時のみ検閲
                     if ero == 0:
                         if contains_ng(t) or ai_check(client, MODEL, t):
                             continue
 
-                        i = i.replace("erotic","soft").replace("lewd","natural")
+                        i = i.replace("erotic", "soft").replace("lewd", "natural")
 
                     results.append((t, i))
 
@@ -168,11 +178,20 @@ if st.button("✨ 生成"):
     st.session_state.results = results[:num_tweets]
 
 # =====================
-# 表示
+# 表示（安全版）
 # =====================
 if "results" in st.session_state:
 
-    for i, (t, img) in enumerate(st.session_state.results):
+    for i, item in enumerate(st.session_state.results):
+
+        # 🔥 安全展開（ここが重要）
+        if len(item) == 2:
+            t, img = item
+        elif len(item) == 4:
+            _, t, img, _ = item
+        else:
+            continue
+
         st.markdown(f"### {i+1}")
         st.text_area("ツイート", t, key=f"t{i}")
         st.text_area("画像プロンプト", img, key=f"i{i}")
