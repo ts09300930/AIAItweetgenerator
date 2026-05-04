@@ -3,7 +3,7 @@ from openai import OpenAI
 import re
 
 st.set_page_config(page_title="裏垢女子ツール", layout="wide")
-st.title("🌸 裏垢女子ツイート生成ツール（ランキング版）")
+st.title("🌸 裏垢女子ツイート生成ツール（安定版）")
 st.caption("件数保証 + NG制御 + スコア上位表示")
 
 # =====================
@@ -19,11 +19,11 @@ def contains_ng(text):
     return any(w in text for w in NG_WORDS)
 
 # =====================
-# AI検閲
+# AIチェック
 # =====================
 def ai_check(client, model, text):
     prompt = f"""
-以下の文章に性的・センシティブ要素が含まれているか判定せよ
+以下に性的要素が含まれるか判定せよ
 
 {text}
 
@@ -41,7 +41,7 @@ SAFE or NG
 # =====================
 def score_tweet(client, model, text):
     prompt = f"""
-以下のツイートを評価（各10点満点）
+以下のツイートを10点満点で評価
 
 {text}
 
@@ -56,14 +56,13 @@ def score_tweet(client, model, text):
     )
     out = res.choices[0].message.content
 
-    # 数値抽出（雑でOK）
     nums = re.findall(r"\d+", out)
     total = sum(map(int, nums[:3])) if len(nums) >= 3 else 0
 
     return total, out
 
 # =====================
-# 生成（1回）
+# 生成1回
 # =====================
 def generate_once(client, model, system_prompt, user_prompt):
     res = client.chat.completions.create(
@@ -77,7 +76,7 @@ def generate_once(client, model, system_prompt, user_prompt):
     return res.choices[0].message.content
 
 # =====================
-# 安全＋補充生成
+# プール生成（件数保証）
 # =====================
 def generate_pool(client, model, system_prompt, user_prompt, ero, target_n):
     results = []
@@ -93,12 +92,10 @@ def generate_pool(client, model, system_prompt, user_prompt, ero, target_n):
                     t = b.split("ツイート:")[1].split("画像:")[0].strip()
                     i = b.split("画像:")[1].strip()
 
-                    # 🔥 エロ0%時のみ検閲
+                    # エロ0%制御
                     if ero == 0:
                         if contains_ng(t) or ai_check(client, model, t):
                             continue
-
-                        # 画像の軽いクリーン化
                         i = i.replace("erotic","soft").replace("lewd","natural").replace("sensual","gentle")
 
                     results.append((t, i))
@@ -132,8 +129,7 @@ with st.sidebar:
         MODEL = "gpt-4o-mini"
 
     num_tweets = st.slider("生成数", 1, 30, 10)
-    top_k = st.slider("表示する上位数", 1, 10, 5)
-
+    top_k = st.slider("表示上位数", 1, 10, 5)
     tweet_length = st.slider("文字数", 10, 250, 60)
 
     kawaii = st.slider("かわいさ", 0, 100, 65)
@@ -157,7 +153,7 @@ if st.button("🚀 プロンプト生成"):
 ペルソナ:
 {persona}
 
-ツイート生成プロンプトのみ出力
+ツイート生成用プロンプトのみ出力
 """
     res = client.chat.completions.create(
         model=MODEL,
@@ -201,26 +197,28 @@ if st.button("✨ 生成"):
 英語
 """
 
-    # 🔥 多めに生成（スコア選別のため）
+    # 多めに生成
     pool = generate_pool(client, MODEL, system_prompt, user_prompt, ero, num_tweets * 2)
 
+    # スコア付与
     scored = []
     for t, i in pool:
         s, detail = score_tweet(client, MODEL, t)
         scored.append((s, t, i, detail))
 
-    # スコア順
+    # ソート
     scored.sort(reverse=True, key=lambda x: x[0])
 
     # 上位だけ
     final = scored[:top_k]
 
+    # 🔥 必ず4要素構造で保存（ここ重要）
     st.session_state.results = final
 
 # =====================
 # 表示
 # =====================
-if "results" in st.session_state:
+if "results" in st.session_state and len(st.session_state.results) > 0:
 
     for idx, (score_val, t, img, detail) in enumerate(st.session_state.results):
         st.markdown(f"## #{idx+1}（スコア:{score_val}）")
