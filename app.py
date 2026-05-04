@@ -2,9 +2,9 @@ import streamlit as st
 from openai import OpenAI
 import json
 
-st.set_page_config(page_title="裏垢女子ツール（再生成対応）", layout="wide")
+st.set_page_config(page_title="裏垢女子ツール（トーン調整強化版）", layout="wide")
 st.title("🌸 裏垢女子ツイート生成ツール")
-st.caption("生成ボタン押すたびに新しい内容が出る | 現在の良いプロンプト維持")
+st.caption("トーン調整が効く | 再生成で内容が変わる | 現在の良いプロンプト維持")
 
 # =====================
 # API設定
@@ -60,10 +60,10 @@ if st.button("🚀 AI①にプロンプトを設計させる", type="primary"):
 - 絵文字・マークダウン一切禁止
 - 吐息は1ツイートに最大2回まで
 
-【トーン調整】
-- かわいさ: {kawaii}/100
-- エロさ: {ero}/100
-- 恥ずかしさ: {hazukashi}/100
+【トーン調整を強く反映】
+- かわいさを{kawaii}％強く出す
+- エロさを{ero}％強く出す
+- 恥ずかしさを{hazukashi}％強く出す
 
 ペルソナ:
 {persona}
@@ -91,7 +91,7 @@ if "meta_prompt" in st.session_state:
             st.rerun()
 
 # =====================
-# ステップ2: 生成（再生成で必ず新しい内容が出る）
+# ステップ2: 生成（再生成で必ず変わる）
 # =====================
 st.divider()
 st.header("ステップ2: ペルソナからAI②が自然にツイートを生成")
@@ -101,7 +101,7 @@ if "meta_prompt" not in st.session_state:
     st.stop()
 
 if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
-    # 毎回新しい生成を強制するためにセッション状態をクリア
+    # 毎回新しい生成を強制
     if "last_tweets" in st.session_state:
         del st.session_state.last_tweets
 
@@ -117,6 +117,7 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
 - 自然な改行を入れて読みやすく
 - 吐息は1ツイートに最大2回まで
 - 各ツイートは明確に異なる内容にする（重複厳禁）
+- かわいさ{kawaii}％・エロさ{ero}％・恥ずかしさ{hazukashi}％を強く反映
 
 **必ず以下のJSON形式で出力**：
 {{
@@ -132,7 +133,7 @@ if st.button(f"✨ AI②で{num_tweets}パターン生成", type="primary"):
         res = client.chat.completions.create(
             model=MODEL,
             messages=[{"role": "system", "content": use_prompt}, {"role": "user", "content": gen}],
-            temperature=0.82,   # 多様性を出すために少し上げた
+            temperature=0.92,   # 多様性を最大化
             max_tokens=8000
         )
         result = res.choices[0].message.content.strip()
@@ -170,4 +171,4 @@ if "last_tweets" in st.session_state:
         st.text_area(f"ツイート{i+1}", value=t, height=110, key=f"t_{i}")
 
 st.divider()
-st.caption("生成ボタン押すたびに新しい内容が出る | 現在の良いプロンプト維持")
+st.caption("生成ボタン押すたびに新しい内容が出る | トーン調整強化")
