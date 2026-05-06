@@ -118,7 +118,7 @@ if "meta_prompt" in st.session_state:
     st.session_state.edited = st.text_area("プロンプト編集", st.session_state.meta_prompt, height=220)
 
 # =====================
-# ステップ2：生成（高速＆多様化）
+# ステップ2：生成（修正版）
 # =====================
 st.header("ステップ2：生成")
 
@@ -132,26 +132,15 @@ if st.button("✨ 生成"):
 
     seed = random.randint(0,999999)
 
-    # 🔥 修正ポイント①：軽量＆多様化
+    # 🔥 軽量化＋最低限の多様性だけ維持
     system_prompt = f"""
 {st.session_state.get("edited", st.session_state.meta_prompt)}
 
-【最重要】
-・自然な独り言だけ書く
-・説明禁止
+自然な独り言のみ
+説明は禁止
 
-【バリエーション強制】
-毎回必ず以下を変えること：
-・書き出し（名詞 / 動詞 / 擬音 / セリフ）
-・文の長さ（短文 / 普通）
-・視点（体 / 行動 / 外の状況）
-・語尾（毎回変える）
+書き出しと語尾はできるだけ変える
 
-【NG】
-・「私、」から始める連続
-・同じ構文の繰り返し
-
-【トーン】
 かわいさ:{tone(kawaii,"kawaii")}
 エロさ:{tone(ero,"ero")}
 恥ずかしさ:{tone(hazu,"hazu")}
@@ -159,11 +148,19 @@ if st.button("✨ 生成"):
 乱数:{seed}
 """
 
-    # 🔥 修正ポイント②：シンプル化
+    # 🔥 複数生成を確実にさせるフォーマット
     user_prompt = f"""
-{num_tweets}個生成
+{num_tweets}個のツイートを生成せよ
+
+必ず以下形式で出力：
 
 ###1
+本文
+
+###2
+本文
+
+###3
 本文
 """
 
@@ -173,17 +170,19 @@ if st.button("✨ 生成"):
             {"role":"system","content":system_prompt},
             {"role":"user","content":user_prompt}
         ],
-        # 🔥 修正ポイント③：速度＆多様性
-        temperature=1.25,
-        max_tokens=800
+        temperature=1.15,
+        max_tokens=500
     )
 
     raw = res.choices[0].message.content
 
+    # 🔥 正しく本文だけ抽出
     results = []
     for b in raw.split("###"):
         if b.strip():
-            results.append(b.strip())
+            lines = b.strip().split("\n", 1)
+            if len(lines) > 1:
+                results.append(lines[1].strip())
 
     st.session_state.results = results[:num_tweets]
 
