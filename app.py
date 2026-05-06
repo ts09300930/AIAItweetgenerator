@@ -3,7 +3,7 @@ from openai import OpenAI
 import random
 
 st.set_page_config(page_title="裏垢女子ツール", layout="wide")
-st.title("🌸 裏垢女子ツール（自然・高速版）")
+st.title("🌸 裏垢女子ツール（自然化安定版）")
 
 # =====================
 # API設定
@@ -33,6 +33,34 @@ with st.sidebar:
     hazu = st.select_slider("恥ずかしさ", options=levels, value="50%")
 
 # =====================
+# トーン変換
+# =====================
+def tone(level, kind):
+    return {
+        "kawaii":{
+            "0%":"無機質",
+            "25%":"少し柔らかい",
+            "50%":"自然",
+            "75%":"甘えた",
+            "100%":"強く甘える"
+        },
+        "ero":{
+            "0%":"なし",
+            "25%":"ほんのり空気",
+            "50%":"少しだけ意識",
+            "75%":"にじむ欲求",
+            "100%":"強め"
+        },
+        "hazu":{
+            "0%":"堂々",
+            "25%":"少し照れ",
+            "50%":"自然な照れ",
+            "75%":"強めに照れ",
+            "100%":"かなり恥ずかしい"
+        }
+    }[kind][level]
+
+# =====================
 # ステップ1：プロンプト生成
 # =====================
 st.header("ステップ1：プロンプト生成")
@@ -44,7 +72,7 @@ if st.button("🚀 プロンプト生成"):
     meta = f"""
 あなたはツイート生成AIのプロンプト設計者。
 
-以下条件を満たすプロンプトを作れ。
+以下条件で「自然な独り言ツイート」を生成するためのプロンプトを作れ。
 
 【ペルソナ】
 {persona}
@@ -57,18 +85,22 @@ if st.button("🚀 プロンプト生成"):
 
 【内容】
 ・1つの瞬間だけを書く
-・行動 / 感覚 / 気持ち のどれか1つを軽く含める
-・自然さ最優先
+・考え込まず“ふと漏れた一言”にする
+・無理に具体的にしすぎない（自然さ優先）
 
-【禁止】
-・説明文
-・同じ語尾の繰り返し
-・テンプレ化
+【表現バランス】
+・行動 / 感覚 / 気持ち のどれか1つが軽く入る程度
+・全部詰め込まない
 
 【トーン】
-かわいさ:{kawaii}
-エロさ:{ero}
-恥ずかしさ:{hazu}
+かわいさ:{tone(kawaii,"kawaii")}
+エロさ:{tone(ero,"ero")}
+恥ずかしさ:{tone(hazu,"hazu")}
+
+【禁止】
+・説明文になること
+・同じ語尾の繰り返し
+・テンプレ化
 
 出力はプロンプトのみ
 """
@@ -83,14 +115,10 @@ if st.button("🚀 プロンプト生成"):
 
 # 編集
 if "meta_prompt" in st.session_state:
-    st.session_state.edited = st.text_area(
-        "プロンプト編集",
-        st.session_state.meta_prompt,
-        height=220
-    )
+    st.session_state.edited = st.text_area("プロンプト編集", st.session_state.meta_prompt, height=220)
 
 # =====================
-# ステップ2：生成（高速・自然）
+# ステップ2：生成（高速＆多様化）
 # =====================
 st.header("ステップ2：生成")
 
@@ -99,39 +127,69 @@ if "meta_prompt" not in st.session_state:
 
 if st.button("✨ 生成"):
 
-    results = []
-    base_prompt = st.session_state.get("edited", st.session_state.meta_prompt)
+    if "results" in st.session_state:
+        del st.session_state.results
 
-    for i in range(num_tweets):
+    seed = random.randint(0,999999)
 
-        seed = random.randint(0,999999)
+    # 🔥 修正ポイント①：軽量＆多様化
+    system_prompt = f"""
+{st.session_state.get("edited", st.session_state.meta_prompt)}
 
-        system_prompt = f"""
-{base_prompt}
+【最重要】
+・自然な独り言だけ書く
+・説明禁止
 
-【最終条件】
-・{tweet_length}文字前後
-・独り言
-・自然な一言
-・同じ表現を避ける
+【バリエーション強制】
+毎回必ず以下を変えること：
+・書き出し（名詞 / 動詞 / 擬音 / セリフ）
+・文の長さ（短文 / 普通）
+・視点（体 / 行動 / 外の状況）
+・語尾（毎回変える）
+
+【NG】
+・「私、」から始める連続
+・同じ構文の繰り返し
+
+【トーン】
+かわいさ:{tone(kawaii,"kawaii")}
+エロさ:{tone(ero,"ero")}
+恥ずかしさ:{tone(hazu,"hazu")}
 
 乱数:{seed}
 """
 
-        res = client.chat.completions.create(
-            model=MODEL,
-            messages=[{"role":"system","content":system_prompt}],
-            temperature=1.2
-        )
+    # 🔥 修正ポイント②：シンプル化
+    user_prompt = f"""
+{num_tweets}個生成
 
-        text = res.choices[0].message.content.strip()
-        results.append(text)
+###1
+本文
+"""
 
-    st.session_state.results = results
+    res = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role":"system","content":system_prompt},
+            {"role":"user","content":user_prompt}
+        ],
+        # 🔥 修正ポイント③：速度＆多様性
+        temperature=1.25,
+        max_tokens=800
+    )
+
+    raw = res.choices[0].message.content
+
+    results = []
+    for b in raw.split("###"):
+        if b.strip():
+            results.append(b.strip())
+
+    st.session_state.results = results[:num_tweets]
 
 # =====================
 # 表示
 # =====================
 if "results" in st.session_state:
-    for i, t in enumerate(st.session_state.results):
+    for i,t in enumerate(st.session_state.results):
         st.text_area(f"ツイート{i+1}", t, key=f"t{i}")
