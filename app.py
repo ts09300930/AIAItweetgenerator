@@ -3,7 +3,7 @@ from openai import OpenAI
 import random
 
 st.set_page_config(page_title="裏垢女子ツール", layout="wide")
-st.title("🌸 裏垢女子ツール（安定版・改良）")
+st.title("🌸 裏垢女子ツール（高速・安定版）")
 
 # =====================
 # API設定
@@ -33,7 +33,7 @@ with st.sidebar:
     hazu = st.select_slider("恥ずかしさ", options=levels, value="50%")
 
 # =====================
-# トーン変換
+# トーン
 # =====================
 def tone(level, kind):
     return {
@@ -61,19 +61,19 @@ def tone(level, kind):
     }[kind][level]
 
 # =====================
-# 構文パターン（固定定義）
+# 構文パターン
 # =====================
 patterns = [
-"感覚スタート型：身体の感覚から始める（例：指先が震えて…）",
-"行動スタート型：動作から始める（例：膝を閉じたら…）",
-"感情スタート型：感情から始める（例：恥ずかしくて…）",
-"擬音スタート型：吐息や反応から始める（例：あ…だめ…）",
-"途中独り言型：途中から始める（例：なんか変で…）",
-"短文→余韻型：1行目短く→2行目で余韻",
-"否定スタート型：否定から入る（例：だめなのに…）",
-"部位スタート型：身体部位から（例：胸の先が…）",
-"動作＋理由型：動作＋理由（例：枕に顔埋めたら落ち着かなくて…）",
-"超短文型：極端に短く感覚のみ"
+"感覚スタート型",
+"行動スタート型",
+"感情スタート型",
+"擬音スタート型",
+"途中独り言型",
+"短文→余韻型",
+"否定スタート型",
+"部位スタート型",
+"動作＋理由型",
+"超短文型"
 ]
 
 # =====================
@@ -88,7 +88,7 @@ if st.button("🚀 プロンプト生成"):
     meta = f"""
 あなたは裏垢女子ツイート生成プロンプト設計者。
 
-以下を満たす「詳細かつ具体的な生成プロンプト」を作成せよ。
+以下を満たす「詳細で具体的な生成プロンプト」を作成せよ。
 
 【ペルソナ】
 {persona}
@@ -102,29 +102,21 @@ if st.button("🚀 プロンプト生成"):
 
 【内容ルール】
 ・1ツイート1状況
-・「行動 / 感覚 / 気持ち」のいずれかを必ず含める
-・抽象表現禁止（例：ドキドキ、寂しい など）
-・具体的な身体の動きや反応のみを書く
-（例：指が震える、膝を閉じる、息が乱れる）
+・「行動 / 身体感覚 / 身体反応」のいずれか必須
+・抽象表現禁止（例：ドキドキ、恥ずかしい）
+・具体描写のみ（指が震える、膝が閉じる、息が乱れる等）
 
 【トーン】
 かわいさ:{tone(kawaii,"kawaii")}
-→ 語尾・間・口調で表現
-
 エロさ:{tone(ero,"ero")}
-→ 身体反応としてのみ表現（直接表現禁止）
-
 恥ずかしさ:{tone(hazu,"hazu")}
-→ 行動・仕草で表現（顔を隠す、動きがぎこちない等）
 
 【禁止】
 ・テンプレ構文
 ・同じ語尾
 ・同じ書き出し
 
-必ず具体例を含めて詳細に書くこと。
-短くまとめないこと。
-
+必ず具体例も含めて詳細に書くこと。
 出力はプロンプトのみ
 """
 
@@ -141,7 +133,7 @@ if "meta_prompt" in st.session_state:
     st.session_state.edited = st.text_area("プロンプト編集", st.session_state.meta_prompt, height=220)
 
 # =====================
-# ステップ2：ツイート生成
+# ステップ2：生成（高速版）
 # =====================
 st.header("ステップ2：生成")
 
@@ -153,23 +145,19 @@ if st.button("✨ 生成"):
     if "results" in st.session_state:
         del st.session_state.results
 
-    results = []
+    seed = random.randint(0,999999)
 
-    for i in range(num_tweets):
+    pattern_text = "\n".join([f"{i+1}. {p}" for i,p in enumerate(patterns)])
 
-        seed = random.randint(0,999999)
-        pattern = random.choice(patterns)
-
-        system_prompt = f"""
+    system_prompt = f"""
 {st.session_state.get("edited", st.session_state.meta_prompt)}
 
-【今回の構文（強制）】
-{pattern}
+【構文パターン一覧】
+{pattern_text}
 
-【最優先ルール】
-・他のツイートと構文を被らせない
-・書き出しを変える
-・語尾を変える
+【重要】
+・各ツイートごとに必ず異なる構文を使用
+・書き出し・語尾・リズムを全て変える
 
 【トーン最終適用】
 かわいさ:{tone(kawaii,"kawaii")}
@@ -179,20 +167,35 @@ if st.button("✨ 生成"):
 乱数:{seed}
 """
 
-        user_prompt = "ツイートを1つ生成せよ"
+    user_prompt = f"""
+{num_tweets}個のツイートを生成せよ
 
-        res = client.chat.completions.create(
-            model=MODEL,
-            messages=[
-                {"role":"system","content":system_prompt},
-                {"role":"user","content":user_prompt}
-            ],
-            temperature=1.15
-        )
+形式:
+###1
+本文
 
-        results.append(res.choices[0].message.content.strip())
+###2
+本文
+"""
 
-    st.session_state.results = results
+    res = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role":"system","content":system_prompt},
+            {"role":"user","content":user_prompt}
+        ],
+        temperature=1.15,
+        max_tokens=2000
+    )
+
+    raw = res.choices[0].message.content
+
+    results = []
+    for b in raw.split("###"):
+        if b.strip():
+            results.append(b.strip())
+
+    st.session_state.results = results[:num_tweets]
 
 # =====================
 # 表示
