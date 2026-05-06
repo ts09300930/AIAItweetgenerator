@@ -3,7 +3,7 @@ from openai import OpenAI
 import random
 
 st.set_page_config(page_title="裏垢女子ツール", layout="wide")
-st.title("🌸 裏垢女子ツール（安定版FINAL）")
+st.title("🌸 裏垢女子ツール（自然・高速版）")
 
 # =====================
 # API設定
@@ -33,20 +33,7 @@ with st.sidebar:
     hazu = st.select_slider("恥ずかしさ", options=levels, value="50%")
 
 # =====================
-# 型バリエーション（強制）
-# =====================
-TWEET_STYLES = [
-    "感覚スタート",
-    "行動スタート",
-    "途中独り言",
-    "短文余韻",
-    "否定スタート",
-    "身体部位スタート",
-    "動作→反応"
-]
-
-# =====================
-# ステップ1
+# ステップ1：プロンプト生成
 # =====================
 st.header("ステップ1：プロンプト生成")
 
@@ -57,7 +44,7 @@ if st.button("🚀 プロンプト生成"):
     meta = f"""
 あなたはツイート生成AIのプロンプト設計者。
 
-以下条件を満たすプロンプトを作れ：
+以下条件を満たすプロンプトを作れ。
 
 【ペルソナ】
 {persona}
@@ -66,16 +53,22 @@ if st.button("🚀 プロンプト生成"):
 ・一人称「私」
 ・{tweet_length}文字前後
 ・1〜2行
-・独り言のみ
+・独り言のみ（説明禁止）
 
 【内容】
-・1つの瞬間だけ
-・具体的な行動 or 身体感覚を1つだけ入れる
-・抽象表現は禁止
+・1つの瞬間だけを書く
+・行動 / 感覚 / 気持ち のどれか1つを軽く含める
+・自然さ最優先
 
 【禁止】
 ・説明文
-・同じ構文の繰り返し
+・同じ語尾の繰り返し
+・テンプレ化
+
+【トーン】
+かわいさ:{kawaii}
+エロさ:{ero}
+恥ずかしさ:{hazu}
 
 出力はプロンプトのみ
 """
@@ -88,6 +81,7 @@ if st.button("🚀 プロンプト生成"):
 
     st.session_state.meta_prompt = res.choices[0].message.content
 
+# 編集
 if "meta_prompt" in st.session_state:
     st.session_state.edited = st.text_area(
         "プロンプト編集",
@@ -96,7 +90,7 @@ if "meta_prompt" in st.session_state:
     )
 
 # =====================
-# ステップ2（完全改善）
+# ステップ2：生成（高速・自然）
 # =====================
 st.header("ステップ2：生成")
 
@@ -106,49 +100,31 @@ if "meta_prompt" not in st.session_state:
 if st.button("✨ 生成"):
 
     results = []
-
     base_prompt = st.session_state.get("edited", st.session_state.meta_prompt)
 
     for i in range(num_tweets):
 
-        style = random.choice(TWEET_STYLES)
         seed = random.randint(0,999999)
 
         system_prompt = f"""
 {base_prompt}
 
-【重要】
-今回は「{style}」の型で書け
-
-【絶対条件】
-・{tweet_length}±5文字
+【最終条件】
+・{tweet_length}文字前後
 ・独り言
-・1状況のみ
-・具体描写のみ
-
-【禁止】
-・同じ語尾
-・同じ構文
-・テンプレ化
+・自然な一言
+・同じ表現を避ける
 
 乱数:{seed}
 """
 
-        # 🔥 文字数制御リトライ
-        for _ in range(3):
+        res = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role":"system","content":system_prompt}],
+            temperature=1.2
+        )
 
-            res = client.chat.completions.create(
-                model=MODEL,
-                messages=[{"role":"system","content":system_prompt}],
-                temperature=1.3
-            )
-
-            text = res.choices[0].message.content.strip()
-            length = len(text)
-
-            if tweet_length - 5 <= length <= tweet_length + 5:
-                break
-
+        text = res.choices[0].message.content.strip()
         results.append(text)
 
     st.session_state.results = results
