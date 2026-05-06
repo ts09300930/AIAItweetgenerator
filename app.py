@@ -24,7 +24,7 @@ with st.sidebar:
         client = OpenAI(api_key=api_key)
         MODEL = "gpt-4o-mini"
 
-    num_tweets = st.slider("生成数", 1, 20, 5)
+    num_tweets = st.slider("生成数", 1, 30, 5)
     tweet_length = st.slider("文字数", 20, 120, 40)
 
     levels = ["0%", "25%", "50%", "75%", "100%"]
